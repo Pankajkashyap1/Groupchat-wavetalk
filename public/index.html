@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WaveTalk — Secure Real-Time & Encrypted Chat</title>
+  <meta name="description" content="Real-time group chat and end-to-end encrypted personal messaging with persistent database history and join timestamps.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div id="app" class="app-root">
+    
+    <!-- AUTH / JOIN SCREEN MODAL -->
+    <div id="auth-modal" class="modal-overlay">
+      <div class="auth-card">
+        <div class="auth-header">
+          <div class="brand-badge">
+            <span class="brand-icon">⚡</span>
+            <span class="brand-name">WaveTalk</span>
+          </div>
+          <h2>Join Conversation</h2>
+          <p class="auth-sub">Real-time group rooms &amp; private encrypted messaging</p>
+        </div>
+
+        <form id="auth-form" class="auth-form" onsubmit="return false;">
+          <!-- Avatar Preview based on typed username -->
+          <div class="avatar-preview-container">
+            <div id="auth-avatar-preview" class="avatar-circle large">?</div>
+            <div class="avatar-label">Auto-generated profile avatar</div>
+          </div>
+
+          <div class="form-group">
+            <label for="username-input">Choose a Username <span class="required">*</span></label>
+            <div class="input-wrapper">
+              <span class="input-icon">@</span>
+              <input 
+                type="text" 
+                id="username-input" 
+                placeholder="e.g. alex_rivera" 
+                maxlength="24" 
+                autocomplete="username"
+                required
+                autofocus
+              >
+            </div>
+            <span class="input-hint">Letters, numbers, and underscores (2-24 chars)</span>
+          </div>
+
+          <div class="form-group">
+            <label for="pin-input">Passcode / PIN <span class="optional">(Optional)</span></label>
+            <div class="input-wrapper">
+              <span class="input-icon">🔒</span>
+              <input 
+                type="password" 
+                id="pin-input" 
+                placeholder="Protects your account &amp; saved history" 
+                maxlength="32" 
+                autocomplete="current-password"
+              >
+            </div>
+            <span class="input-hint">Set once to safeguard your account on this device</span>
+          </div>
+
+          <div id="auth-error" class="auth-error-msg hidden"></div>
+
+          <button type="submit" id="join-btn" class="btn btn-primary btn-block">
+            <span class="btn-text">Enter Chat</span>
+            <span class="btn-arrow">→</span>
+          </button>
+        </form>
+
+        <div class="auth-footer-features">
+          <div class="feature-item">
+            <span class="feature-icon">💾</span>
+            <span>Persistent Database</span>
+          </div>
+          <div class="feature-item">
+            <span class="feature-icon">🔒</span>
+            <span>E2E Encrypted DMs</span>
+          </div>
+          <div class="feature-item">
+            <span class="feature-icon">⏱️</span>
+            <span>Join &amp; Message Timestamps</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MAIN CHAT APP SHELL -->
+    <div id="chat-container" class="chat-container hidden">
+      
+      <!-- MOBILE BACKDROP -->
+      <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
+
+      <!-- SIDEBAR -->
+      <aside id="sidebar" class="sidebar">
+        <!-- Brand / Current User Profile -->
+        <div class="sidebar-header">
+          <div class="user-profile-widget" id="user-profile-widget" title="Your Account Details">
+            <div id="my-avatar" class="avatar-circle">ME</div>
+            <div class="user-profile-info">
+              <div class="user-name-row">
+                <span id="my-username" class="profile-username">User</span>
+                <span class="status-dot online" title="Online"></span>
+              </div>
+              <div id="my-joined-time" class="profile-joined-text">Joined: Just now</div>
+            </div>
+          </div>
+
+          <div class="header-actions">
+            <button id="logout-btn" class="icon-btn" title="Log out">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="sidebar-search">
+          <div class="search-input-wrapper">
+            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="user-search" placeholder="Search people or rooms..." autocomplete="off">
+            <button id="clear-search-btn" class="clear-btn hidden">&times;</button>
+          </div>
+        </div>
+
+        <!-- Conversations List -->
+        <div class="sidebar-channels-scroll">
+          
+          <!-- Channels Section -->
+          <div class="nav-section">
+            <div class="nav-section-title">CHANNELS</div>
+            <div 
+              id="channel-group" 
+              class="nav-item active" 
+              data-type="group" 
+              data-target="group"
+            >
+              <div class="nav-icon-box">#</div>
+              <div class="nav-details">
+                <div class="nav-name-row">
+                  <span class="nav-title">iitbhilai</span>
+                  <span id="group-unread-badge" class="unread-pill hidden">0</span>
+                </div>
+                <div class="nav-sub">Public room • Everyone</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Direct Messages Section -->
+          <div class="nav-section">
+            <div class="nav-section-title-row">
+              <span class="nav-section-title">DIRECT MESSAGES</span>
+              <span class="encryption-tag" title="All 1-on-1 messages are encrypted client-side">
+                🔒 E2EE
+              </span>
+            </div>
+            <div id="dm-list" class="dm-list">
+              <!-- Dynamically populated via JS -->
+              <div class="empty-list-notice">No other members yet</div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Sidebar Footer Status -->
+        <div class="sidebar-footer">
+          <div class="connection-indicator">
+            <span id="conn-dot" class="status-dot online"></span>
+            <span id="conn-text">Connected</span>
+          </div>
+          <div id="server-stats" class="server-stats-pill">0 online</div>
+        </div>
+      </aside>
+
+      <!-- MAIN CHAT PANE -->
+      <main class="chat-main">
+        
+        <!-- CHAT HEADER -->
+        <header class="chat-header">
+          <div class="chat-header-left">
+            <button id="mobile-menu-btn" class="icon-btn mobile-only" aria-label="Open Sidebar">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+              </svg>
+            </button>
+
+            <div id="chat-header-avatar" class="avatar-circle">#</div>
+
+            <div class="chat-header-meta">
+              <div class="chat-header-title-row">
+                <h1 id="active-chat-title" class="chat-title">iitbhilai</h1>
+                <span id="e2ee-badge" class="security-badge hidden" title="End-to-End Encrypted with AES-GCM">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
+                  </svg>
+                  <span>Encrypted</span>
+                </span>
+              </div>
+              <p id="active-chat-subtitle" class="chat-subtitle">Connecting to room...</p>
+            </div>
+          </div>
+
+          <div class="chat-header-right">
+            <button id="security-info-btn" class="btn btn-subtle hidden" title="Verify Encryption Fingerprint">
+              <span class="btn-icon">🛡️</span>
+              <span class="btn-text">Security Code</span>
+            </button>
+            <button id="search-msg-btn" class="icon-btn" title="Search in this conversation">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <!-- IN-CHAT SEARCH BAR (Collapsible) -->
+        <div id="in-chat-search-bar" class="in-chat-search-bar hidden">
+          <input type="text" id="msg-search-input" placeholder="Search message text...">
+          <button id="close-msg-search" class="icon-btn small">&times;</button>
+        </div>
+
+        <!-- MESSAGE VIEWPORT -->
+        <div id="message-container" class="message-container">
+          <div class="chat-loading-notice">Loading chat history from database...</div>
+        </div>
+
+        <!-- TYPING INDICATOR -->
+        <div id="typing-indicator" class="typing-indicator hidden">
+          <div class="typing-dots">
+            <span></span><span></span><span></span>
+          </div>
+          <span id="typing-text" class="typing-text">Someone is typing...</span>
+        </div>
+
+        <!-- COMPOSER AREA -->
+        <div class="composer-container">
+          
+          <!-- EMOJI PICKER POPUP -->
+          <div id="emoji-picker" class="emoji-picker hidden">
+            <div class="emoji-picker-header">
+              <span>Quick Reactions</span>
+              <button id="close-emoji-btn" class="close-btn">&times;</button>
+            </div>
+            <div class="emoji-grid">
+              <button class="emoji-btn" data-emoji="👍">👍</button>
+              <button class="emoji-btn" data-emoji="❤️">❤️</button>
+              <button class="emoji-btn" data-emoji="😂">😂</button>
+              <button class="emoji-btn" data-emoji="🔥">🔥</button>
+              <button class="emoji-btn" data-emoji="🎉">🎉</button>
+              <button class="emoji-btn" data-emoji="🚀">🚀</button>
+              <button class="emoji-btn" data-emoji="🔒">🔒</button>
+              <button class="emoji-btn" data-emoji="✨">✨</button>
+              <button class="emoji-btn" data-emoji="👏">👏</button>
+              <button class="emoji-btn" data-emoji="🙌">🙌</button>
+              <button class="emoji-btn" data-emoji="💯">💯</button>
+              <button class="emoji-btn" data-emoji="😎">😎</button>
+              <button class="emoji-btn" data-emoji="👋">👋</button>
+              <button class="emoji-btn" data-emoji="💡">💡</button>
+              <button class="emoji-btn" data-emoji="⚡">⚡</button>
+              <button class="emoji-btn" data-emoji="🤝">🤝</button>
+            </div>
+          </div>
+
+          <div class="composer-box">
+            <button id="emoji-toggle-btn" class="composer-action-btn" title="Add emoji">
+              😀
+            </button>
+
+            <textarea 
+              id="message-input" 
+              class="message-textarea" 
+              placeholder="Message #iitbhilai... (Enter to send, Shift+Enter for newline)" 
+              rows="1"
+              maxlength="2000"
+            ></textarea>
+
+            <button id="send-btn" class="send-btn" title="Send message">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+      </main>
+
+    </div>
+
+    <!-- SECURITY / FINGERPRINT MODAL -->
+    <div id="security-modal" class="modal-overlay hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div class="modal-icon-shield">🔒</div>
+          <div class="modal-title-box">
+            <h3>End-to-End Encryption Verification</h3>
+            <p>Private 1-on-1 Security Code</p>
+          </div>
+          <button id="close-security-modal" class="close-btn">&times;</button>
+        </div>
+
+        <div class="modal-body">
+          <p class="security-desc">
+            All messages exchanged between you and <strong id="security-partner-name">...</strong> are encrypted on your device using <strong>AES-GCM 256-bit</strong> encryption. The server only stores ciphertext.
+          </p>
+
+          <div class="fingerprint-display">
+            <div class="fingerprint-label">SAFETY FINGERPRINT CODE</div>
+            <div id="security-fingerprint-code" class="fingerprint-code">0000 0000 0000 0000</div>
+          </div>
+
+          <div class="security-checklist">
+            <div class="check-item">
+              <span class="check-icon">✓</span>
+              <span>Encrypted with native Web Crypto API</span>
+            </div>
+            <div class="check-item">
+              <span class="check-icon">✓</span>
+              <span>Unique 96-bit IV per message</span>
+            </div>
+            <div class="check-item">
+              <span class="check-icon">✓</span>
+              <span>Decrypted exclusively on your browsers</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button id="security-done-btn" class="btn btn-primary">Done</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- App Scripts -->
+  <script src="/crypto.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

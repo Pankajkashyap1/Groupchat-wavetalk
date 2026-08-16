@@ -1,0 +1,198 @@
+{
+  "users": {
+    "pankaj": {
+      "id": "usr_5b95e8a3",
+      "username": "pankaj",
+      "pinHash": "895bb957e4b5afb5acd798879572795bc5e363f7b884d688c902575a163796bb",
+      "salt": "1b1906db245693c2d89b0054bb57eaae",
+      "joinedAt": 1786902492380,
+      "lastSeen": 1786903925179,
+      "avatarColor": {
+        "bg": "#4f46e5",
+        "fg": "#ffffff"
+      }
+    },
+    "ashutosh": {
+      "id": "usr_4572426e",
+      "username": "ashutosh",
+      "pinHash": "b0cc54e871a58523240f9e94feb49e58484121f5e0992c4d67c75ec873e4bb8c",
+      "salt": "c6f59750b425c541d87fa5929e093879",
+      "joinedAt": 1786902537335,
+      "lastSeen": 1786902858526,
+      "avatarColor": {
+        "bg": "#db2777",
+        "fg": "#ffffff"
+      }
+    },
+    "aayush": {
+      "id": "usr_3564d622",
+      "username": "aayush",
+      "pinHash": "e1606837d2152e869c4d6dbd9793267088284498ddfdeb89bcb54ccf982b0f24",
+      "salt": "48a44cb2bbc5f109144a01d89ceacba1",
+      "joinedAt": 1786902866480,
+      "lastSeen": 1786902909410,
+      "avatarColor": {
+        "bg": "#0d9488",
+        "fg": "#ffffff"
+      }
+    },
+    "csd": {
+      "id": "usr_8bfc1af5",
+      "username": "CSD",
+      "pinHash": "f98064f5545d5b464f41663bee9d62d6a8399b64a450fd37fe7701fdc2e19a7d",
+      "salt": "4780bc3d7a8fa831985fde9569be0b49",
+      "joinedAt": 1786903659432,
+      "lastSeen": 1786903948944,
+      "avatarColor": {
+        "bg": "#0891b2",
+        "fg": "#ffffff"
+      }
+    }
+  },
+  "groupMessages": [
+    {
+      "id": "grp_1786902502115_2y7nv",
+      "sender": "pankaj",
+      "text": "hi",
+      "type": "chat",
+      "meta": {},
+      "timestamp": 1786902502115
+    },
+    {
+      "id": "grp_1786902541799_txyrg",
+      "sender": "ashutosh",
+      "text": "hi",
+      "type": "chat",
+      "meta": {},
+      "timestamp": 1786902541799
+    },
+    {
+      "id": "grp_1786902553691_u9rrd",
+      "sender": "pankaj",
+      "text": "asdf",
+      "type": "chat",
+      "meta": {},
+      "timestamp": 1786902553691
+    },
+    {
+      "id": "grp_1786902561923_tg9br",
+      "sender": "ashutosh",
+      "text": "asdf",
+      "type": "chat",
+      "meta": {},
+      "timestamp": 1786902561923
+    },
+    {
+      "id": "grp_1786902573378_caslb",
+      "sender": "pankaj",
+      "text": "asdf",
+      "type": "chat",
+      "meta": {},
+      "timestamp": 1786902573378
+    },
+    {
+      "id": "grp_1786902584549_efi6c",
+      "sender": "ashutosh",
+      "text": "adsf",
+      "type": "chat",
+      "meta": {},
+      "timestamp": 1786902584549
+    },
+    {
+      "id": "grp_1786902708663_ktfps",
+      "sender": "pankaj",
+      "text": "panakj",
+      "type": "chat",
+      "meta": {},
+      "timestamp": 1786902708663
+    },
+    {
+      "id": "grp_1786902719396_yjybx",
+      "sender": "ashutosh",
+      "text": "ashutosh",
+      "type": "chat",
+      "meta": {},
+      "timestamp": 1786902719396
+    },
+    {
+      "id": "grp_1786902732236_6n5cm",
+      "sender": "pankaj",
+      "text": "hi",
+      "type": "chat",
+      "meta": {},
+      "timestamp": 1786902732236
+    },
+    {
+      "id": "grp_1786902749494_yaoee",
+      "sender": "ashutosh",
+      "text": "jbdksfabkl",
+      "type": "chat",
+      "meta": {},
+      "timestamp": 1786902749494
+    },
+    {
+      "id": "grp_1786902869692_0zz59",
+      "sender": "aayush",
+      "text": "hii",
+      "type": "chat",
+      "meta": {},
+      "timestamp": 1786902869692
+    },
+    {
+      "id": "grp_1786902874080_2vx31",
+      "sender": "aayush",
+      "text": "im aayush",
+      "type": "chat",
+      "meta": {},
+      "timestamp": 1786902874080
+    },
+    {
+      "id": "grp_1786902902355_nelon",
+      "sender": "aayush",
+      "text": "@pankaj hi",
+      "type": "chat",
+      "meta": {},
+      "timestamp": 1786902902355
+    },
+    {
+      "id": "grp_1786902921424_aguow",
+      "sender": "pankaj",
+      "text": "hello",
+      "type": "chat",
+      "meta": {},
+      "timestamp": 1786902921424
+    },
+    {
+      "id": "grp_1786903669822_h39ep",
+      "sender": "CSD",
+      "text": "hey group members",
+      "type": "chat",
+      "meta": {},
+      "timestamp": 1786903669822
+    }
+  ],
+  "personalMessages": [
+    {
+      "id": "pm_1786902887052_ie3ii",
+      "sender": "aayush",
+      "recipient": "pankaj",
+      "ciphertext": "YWRz",
+      "iv": "fallback",
+      "salt": "",
+      "meta": {},
+      "read": false,
+      "timestamp": 1786902887052
+    },
+    {
+      "id": "pm_1786902891668_tg8ou",
+      "sender": "aayush",
+      "recipient": "ashutosh",
+      "ciphertext": "YXNk",
+      "iv": "fallback",
+      "salt": "",
+      "meta": {},
+      "read": false,
+      "timestamp": 1786902891668
+    }
+  ]
+}

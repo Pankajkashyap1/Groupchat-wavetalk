@@ -1,0 +1,15 @@
+{
+  "name": "wavetalk",
+  "version": "1.0.0",
+  "description": "Real-time chat application with group chat, end-to-end encrypted personal messages, persistent database, and join timestamps.",
+  "main": "server/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "node server/server.js",
+    "test": "node tests/run.js"
+  },
+  "dependencies": {
+    "ws": "^8.21.3"
+  }
+}

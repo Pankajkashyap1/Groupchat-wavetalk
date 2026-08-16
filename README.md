@@ -89,3 +89,14 @@ npm test
 
 ## 📄 License
 MIT License. Free to use and modify.
+
+---
+
+## 👥 Contributors
+
+| Name | GitHub | Role |
+|------|--------|------|
+| **Pankaj Kashyap** | [@Pankajkashyap1](https://github.com/Pankajkashyap1) | Project Lead & Developer |
+| **Ashutosh Choubey** | [@ashutoshchoubeyofficial](https://github.com/ashutoshchoubeyofficial) | Contributor |
+| **Ayush Khelwal** | [@Ayush-khelwal2003](https://github.com/Ayush-khelwal2003) | Contributor |
+

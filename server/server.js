@@ -1,7 +1,4 @@
-// WaveTalk Real-Time Chat Server
-// Features: HTTP static file server, WebSocket real-time messaging, Group Chat,
-// Encrypted Direct Messages routing, User Presence, Join Timestamps, and Persistent Database.
-
+import 'dotenv/config';
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
@@ -15,8 +12,8 @@ const __dirname = path.dirname(__filename);
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 
 const PORT = process.env.PORT || 3000;
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/CHAT-APP';
 
-// MIME types dictionary for static file serving
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -30,29 +27,28 @@ const MIME_TYPES = {
   '.woff2': 'font/woff2'
 };
 
-// HTTP Server
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
   const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   let pathname = urlObj.pathname;
 
-  // API Endpoints
   if (pathname === '/api/status') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
+    const allUsers = await db.getAllUsers();
     return res.end(JSON.stringify({
       status: 'ok',
       uptime: process.uptime(),
       onlineUsers: getOnlineUsernames().length,
-      totalUsers: db.getAllUsers().length,
+      totalUsers: allUsers.length,
       timestamp: Date.now()
     }));
   }
 
   if (pathname === '/api/users') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify(getRosterWithStatus()));
+    const roster = await getRosterWithStatus();
+    return res.end(JSON.stringify(roster));
   }
 
-  // Serve static files
   if (pathname === '/') {
     pathname = '/index.html';
   }
@@ -60,7 +56,6 @@ const server = http.createServer((req, res) => {
   const safePath = path.normalize(pathname).replace(/^(\.\.[\/\\])+/, '');
   const filePath = path.join(PUBLIC_DIR, safePath);
 
-  // Security check: ensure file is inside PUBLIC_DIR
   if (!filePath.startsWith(PUBLIC_DIR)) {
     res.writeHead(403, { 'Content-Type': 'text/plain' });
     return res.end('403 Forbidden');
@@ -68,7 +63,6 @@ const server = http.createServer((req, res) => {
 
   fs.stat(filePath, (err, stats) => {
     if (err || !stats.isFile()) {
-      // Fallback to index.html for SPA if not an asset request
       if (!path.extname(pathname)) {
         const indexPath = path.join(PUBLIC_DIR, 'index.html');
         return fs.readFile(indexPath, (readErr, content) => {
@@ -95,13 +89,9 @@ const server = http.createServer((req, res) => {
   });
 });
 
-// WebSocket Server
 const wss = new WebSocketServer({ server });
-
-// Map WebSocket to user metadata: ws -> { username, joinedAt, alive }
 const socketUserMap = new Map();
 
-// Helper functions
 function getOnlineUsernames() {
   const online = new Set();
   for (const [ws, info] of socketUserMap.entries()) {
@@ -123,9 +113,9 @@ function getSocketsForUser(username) {
   return sockets;
 }
 
-function getRosterWithStatus() {
+async function getRosterWithStatus() {
   const onlineSet = new Set(getOnlineUsernames());
-  const allUsers = db.getAllUsers();
+  const allUsers = await db.getAllUsers();
   return allUsers.map(u => ({
     username: u.username,
     joinedAt: u.joinedAt,
@@ -133,7 +123,6 @@ function getRosterWithStatus() {
     avatarColor: u.avatarColor,
     isOnline: onlineSet.has(u.username.toLowerCase())
   })).sort((a, b) => {
-    // Online users first, then by username
     if (a.isOnline !== b.isOnline) return a.isOnline ? -1 : 1;
     return a.username.localeCompare(b.username);
   });
@@ -162,12 +151,11 @@ function broadcast(obj, excludeWs = null) {
   }
 }
 
-function broadcastRoster() {
-  const roster = getRosterWithStatus();
+async function broadcastRoster() {
+  const roster = await getRosterWithStatus();
   broadcast({ type: 'roster_update', roster, onlineCount: getOnlineUsernames().length });
 }
 
-// WebSocket Event Handling
 wss.on('connection', (ws, req) => {
   const clientInfo = { username: null, alive: true, ip: req.socket.remoteAddress };
   socketUserMap.set(ws, clientInfo);
@@ -176,7 +164,7 @@ wss.on('connection', (ws, req) => {
     clientInfo.alive = true;
   });
 
-  ws.on('message', (raw) => {
+  ws.on('message', async (raw) => {
     let msg;
     try {
       msg = JSON.parse(raw.toString());
@@ -186,12 +174,10 @@ wss.on('connection', (ws, req) => {
 
     const { type, payload } = msg;
 
-    // --- AUTH / JOIN ---
-    if (type === 'auth_join') {
-      const { username, pin } = payload || {};
-
-      try {
-        const authResult = db.getOrCreateUser(username, pin);
+    try {
+      if (type === 'auth_join') {
+        const { username, pin } = payload || {};
+        const authResult = await db.getOrCreateUser(username, pin);
 
         if (authResult.error) {
           return sendJson(ws, {
@@ -205,11 +191,9 @@ wss.on('connection', (ws, req) => {
         clientInfo.username = user.username;
         clientInfo.joinedAt = user.joinedAt;
 
-        // Fetch history & initial state
-        // New users see no previous chat history. Returning users see their chat history from their joinedAt timestamp onwards.
-        const groupHistory = authResult.isNew ? [] : db.getGroupHistory(100, user.joinedAt);
-        const personalConversations = db.getAllPersonalConversationsForUser(user.username);
-        const roster = getRosterWithStatus();
+        const groupHistory = authResult.isNew ? [] : await db.getGroupHistory(100, user.joinedAt);
+        const personalConversations = await db.getAllPersonalConversationsForUser(user.username);
+        const roster = await getRosterWithStatus();
 
         sendJson(ws, {
           type: 'auth_success',
@@ -224,7 +208,6 @@ wss.on('connection', (ws, req) => {
           roster
         });
 
-        // Broadcast join notice
         broadcast({
           type: 'system_event',
           event: 'user_joined',
@@ -234,149 +217,145 @@ wss.on('connection', (ws, req) => {
           timestamp: Date.now()
         }, ws);
 
-        // Update roster across all clients
-        broadcastRoster();
+        await broadcastRoster();
         console.log(`[AUTH] ${user.username} joined (New: ${authResult.isNew}). Online: ${getOnlineUsernames().length}`);
-      } catch (err) {
-        sendJson(ws, { type: 'auth_error', reason: err.message });
-      }
-      return;
-    }
-
-    // Require authentication for subsequent actions
-    if (!clientInfo.username) {
-      return sendJson(ws, { type: 'auth_required', message: 'Please log in first' });
-    }
-
-    const currentUsername = clientInfo.username;
-    db.updateUserLastSeen(currentUsername);
-
-    // --- GROUP CHAT MESSAGE ---
-    if (type === 'chat_group') {
-      const text = String(payload?.text || '').trim();
-      if (!text) return;
-
-      const savedMsg = db.saveGroupMessage({
-        sender: currentUsername,
-        text: text.slice(0, 2000),
-        type: 'chat'
-      });
-
-      broadcast({
-        type: 'group_message',
-        message: savedMsg
-      });
-
-      console.log(`[GROUP] ${currentUsername}: ${text.slice(0, 60)}`);
-      return;
-    }
-
-    // --- ENCRYPTED PERSONAL / DIRECT MESSAGE ---
-    if (type === 'chat_personal') {
-      const { recipient, ciphertext, iv, salt, meta } = payload || {};
-      if (!recipient || !ciphertext || !iv) {
-        return sendJson(ws, { type: 'error', message: 'Incomplete encrypted message' });
+        return;
       }
 
-      const recipientUser = db.getUser(recipient);
-      if (!recipientUser) {
-        return sendJson(ws, { type: 'error', message: `User ${recipient} does not exist.` });
+      if (!clientInfo.username) {
+        return sendJson(ws, { type: 'auth_required', message: 'Please log in first' });
       }
 
-      const savedMsg = db.savePersonalMessage({
-        sender: currentUsername,
-        recipient: recipientUser.username,
-        ciphertext,
-        iv,
-        salt: salt || '',
-        meta: meta || {}
-      });
+      const currentUsername = clientInfo.username;
+      
+      db.updateUserLastSeen(currentUsername).catch(console.error);
 
-      // Send to all active sockets of the recipient
-      const recipientSockets = getSocketsForUser(recipientUser.username);
-      recipientSockets.forEach(sock => {
-        sendJson(sock, {
-          type: 'personal_message',
-          message: savedMsg
+      if (type === 'chat_group') {
+        const text = String(payload?.text || '').trim();
+        if (!text) return;
+
+        const savedMsg = await db.saveGroupMessage({
+          sender: currentUsername,
+          text: text.slice(0, 2000),
+          type: 'chat'
         });
-      });
 
-      // Send confirmation / echo to all active sockets of the sender
-      const senderSockets = getSocketsForUser(currentUsername);
-      senderSockets.forEach(sock => {
-        sendJson(sock, {
-          type: 'personal_message_sent',
-          message: savedMsg
-        });
-      });
-
-      console.log(`[PM Encrypted] ${currentUsername} -> ${recipientUser.username} (bytes: ${ciphertext.length})`);
-      return;
-    }
-
-    // --- FETCH PERSONAL CHAT HISTORY ---
-    if (type === 'get_personal_history') {
-      const { partner } = payload || {};
-      if (!partner) return;
-
-      const history = db.getPersonalHistory(currentUsername, partner, 100);
-      db.markPersonalMessagesAsRead(currentUsername, partner);
-
-      sendJson(ws, {
-        type: 'personal_history',
-        partner,
-        history
-      });
-      return;
-    }
-
-    // --- TYPING INDICATOR ---
-    if (type === 'typing') {
-      const { target, isTyping } = payload || {};
-      if (target === 'group') {
         broadcast({
-          type: 'typing_update',
-          target: 'group',
-          username: currentUsername,
-          isTyping: !!isTyping
-        }, ws);
-      } else if (target) {
-        const recipientSockets = getSocketsForUser(target);
+          type: 'group_message',
+          message: savedMsg
+        });
+
+        console.log(`[GROUP] ${currentUsername}: ${text.slice(0, 60)}`);
+        return;
+      }
+
+      if (type === 'chat_personal') {
+        const { recipient, ciphertext, iv, salt, meta } = payload || {};
+        if (!recipient || !ciphertext || !iv) {
+          return sendJson(ws, { type: 'error', message: 'Incomplete encrypted message' });
+        }
+
+        const recipientUser = await db.getUser(recipient);
+        if (!recipientUser) {
+          return sendJson(ws, { type: 'error', message: `User ${recipient} does not exist.` });
+        }
+
+        const savedMsg = await db.savePersonalMessage({
+          sender: currentUsername,
+          recipient: recipientUser.username,
+          ciphertext,
+          iv,
+          salt: salt || '',
+          meta: meta || {}
+        });
+
+        const recipientSockets = getSocketsForUser(recipientUser.username);
         recipientSockets.forEach(sock => {
           sendJson(sock, {
-            type: 'typing_update',
-            target: 'personal',
-            sender: currentUsername,
-            isTyping: !!isTyping
+            type: 'personal_message',
+            message: savedMsg
           });
         });
-      }
-      return;
-    }
 
-    // --- MARK READ ---
-    if (type === 'mark_read') {
-      const { sender } = payload || {};
-      if (sender) {
-        db.markPersonalMessagesAsRead(currentUsername, sender);
-        sendJson(ws, { type: 'marked_read_ok', sender });
+        const senderSockets = getSocketsForUser(currentUsername);
+        senderSockets.forEach(sock => {
+          sendJson(sock, {
+            type: 'personal_message_sent',
+            message: savedMsg
+          });
+        });
+
+        console.log(`[PM Encrypted] ${currentUsername} -> ${recipientUser.username} (bytes: ${ciphertext.length})`);
+        return;
       }
-      return;
+
+      if (type === 'get_personal_history') {
+        const { partner } = payload || {};
+        if (!partner) return;
+
+        const history = await db.getPersonalHistory(currentUsername, partner, 100);
+        await db.markPersonalMessagesAsRead(currentUsername, partner);
+
+        sendJson(ws, {
+          type: 'personal_history',
+          partner,
+          history
+        });
+        return;
+      }
+
+      if (type === 'typing') {
+        const { target, isTyping } = payload || {};
+        if (target === 'group') {
+          broadcast({
+            type: 'typing_update',
+            target: 'group',
+            username: currentUsername,
+            isTyping: !!isTyping
+          }, ws);
+        } else if (target) {
+          const recipientSockets = getSocketsForUser(target);
+          recipientSockets.forEach(sock => {
+            sendJson(sock, {
+              type: 'typing_update',
+              target: 'personal',
+              sender: currentUsername,
+              isTyping: !!isTyping
+            });
+          });
+        }
+        return;
+      }
+
+      if (type === 'mark_read') {
+        const { sender } = payload || {};
+        if (sender) {
+          await db.markPersonalMessagesAsRead(currentUsername, sender);
+          sendJson(ws, { type: 'marked_read_ok', sender });
+        }
+        return;
+      }
+    } catch (error) {
+      console.error(`[WS Error] Handling ${type}:`, error);
+      sendJson(ws, { type: 'error', message: 'Internal server error' });
     }
   });
 
-  // Disconnect handler
-  const handleDisconnect = () => {
+  const handleDisconnect = async () => {
     const info = socketUserMap.get(ws);
     if (!info) return;
 
     socketUserMap.delete(ws);
 
     if (info.username) {
-      db.updateUserLastSeen(info.username);
+      try {
+        await db.updateUserLastSeen(info.username);
+      } catch (e) {
+        console.error('Failed to update last seen on disconnect:', e);
+      }
+      
       const remainingSockets = getSocketsForUser(info.username);
 
-      // Only announce departure if user has no remaining active connections
       if (remainingSockets.length === 0) {
         broadcast({
           type: 'system_event',
@@ -385,7 +364,7 @@ wss.on('connection', (ws, req) => {
           text: `${info.username} disconnected`,
           timestamp: Date.now()
         });
-        broadcastRoster();
+        await broadcastRoster();
         console.log(`[AUTH] ${info.username} left. Online: ${getOnlineUsernames().length}`);
       }
     }
@@ -395,7 +374,6 @@ wss.on('connection', (ws, req) => {
   ws.on('error', handleDisconnect);
 });
 
-// Heartbeat interval to drop dead connections
 const heartbeat = setInterval(() => {
   for (const [ws, info] of socketUserMap.entries()) {
     if (!info.alive) {
@@ -415,20 +393,30 @@ const heartbeat = setInterval(() => {
 
 wss.on('close', () => clearInterval(heartbeat));
 
-// Start server
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`====================================================`);
-  console.log(`🚀 WaveTalk Chat Server running on port ${PORT}`);
-  console.log(`💻 Local:   http://localhost:${PORT}`);
+async function startServer() {
+  try {
+    await db.connectDB(MONGODB_URI);
+    
+    server.listen(PORT, '0.0.0.0', () => {
+      console.log(`====================================================`);
+      console.log(`🚀 WaveTalk Chat Server running on port ${PORT}`);
+      console.log(`💻 Local:   http://localhost:${PORT}`);
 
-  const networkInterfaces = os.networkInterfaces();
-  for (const iface of Object.values(networkInterfaces)) {
-    if (!iface) continue;
-    for (const alias of iface) {
-      if (alias.family === 'IPv4' && !alias.internal) {
-        console.log(`🌐 Network: http://${alias.address}:${PORT}`);
+      const networkInterfaces = os.networkInterfaces();
+      for (const iface of Object.values(networkInterfaces)) {
+        if (!iface) continue;
+        for (const alias of iface) {
+          if (alias.family === 'IPv4' && !alias.internal) {
+            console.log(`🌐 Network: http://${alias.address}:${PORT}`);
+          }
+        }
       }
-    }
+      console.log(`====================================================`);
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
   }
-  console.log(`====================================================`);
-});
+}
+
+startServer();

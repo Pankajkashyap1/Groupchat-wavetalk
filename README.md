@@ -32,7 +32,7 @@ cd wavetalk-main
 ```
 
 ### 2. Install dependencies
-```bash
+``bash
 npm install
 ```
 

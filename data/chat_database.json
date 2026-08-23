@@ -47,6 +47,18 @@
         "bg": "#0891b2",
         "fg": "#ffffff"
       }
+    },
+    "ayush": {
+      "id": "usr_85766ac2",
+      "username": "ayush",
+      "pinHash": "f6a827e1743825991829678498c95bf94e0fdb8037312e36d95b908ba8c70a7d",
+      "salt": "4fd8b433d53f05c6e9071163c1f37391",
+      "joinedAt": 1786906169589,
+      "lastSeen": 1787460837684,
+      "avatarColor": {
+        "bg": "#7c3aed",
+        "fg": "#ffffff"
+      }
     }
   },
   "groupMessages": [
@@ -193,6 +205,39 @@
       "meta": {},
       "read": false,
       "timestamp": 1786902891668
+    },
+    {
+      "id": "pm_1786906182261_e62v6",
+      "sender": "ayush",
+      "recipient": "aayush",
+      "ciphertext": "Vz9BFcw3eXC8hh0wsWjxNMUv",
+      "iv": "vlvL8rU9qwDYDNfv",
+      "salt": "",
+      "meta": {},
+      "read": false,
+      "timestamp": 1786906182261
+    },
+    {
+      "id": "pm_1786906189762_uegym",
+      "sender": "ayush",
+      "recipient": "ashutosh",
+      "ciphertext": "nFmIAjAXsfC8wxlDVw+UZTTG",
+      "iv": "MkCIb4RENtuBxrS1",
+      "salt": "",
+      "meta": {},
+      "read": false,
+      "timestamp": 1786906189762
+    },
+    {
+      "id": "pm_1787460836199_l9ak2",
+      "sender": "ayush",
+      "recipient": "aayush",
+      "ciphertext": "+i1o9HTCbLAv0zW/yIydVn1s",
+      "iv": "hWM51KPzdvISbymm",
+      "salt": "",
+      "meta": {},
+      "read": false,
+      "timestamp": 1787460836199
     }
   ]
 }

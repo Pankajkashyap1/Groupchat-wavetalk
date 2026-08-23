@@ -13,7 +13,7 @@ A modern, fast, real-time chat web application featuring **#iitbhilai Group Room
 
 - ⚡ **Real-Time Group Chat (`#iitbhilai`)**: Instant messaging with live typing indicators and connection presence.
 - 🔒 **End-to-End Encrypted DMs**: 1-on-1 personal messages are encrypted on your device using native `window.crypto.subtle` (AES-GCM 256-bit with PBKDF2 100,000 rounds). The server only stores encrypted ciphertext.
-- 💾 **Persistent Database**: Chat histories and user profiles are stored persistently. Returning users get their full chat history restored upon logging back in.
+- 💾 **MongoDB Atlas Integration**: Chat histories, encrypted DMs, and user profiles (with `bcryptjs` secured PINs) are stored persistently in MongoDB. Returning users get their full chat history restored upon logging back in.
 - ⏱️ **Smart History & Join Timestamps**:
   - **New Users**: Group history starts clean — new users only see messages sent after they join.
   - **Old Users**: Returning users seamlessly load their past conversations.
@@ -32,16 +32,23 @@ cd wavetalk-main
 ```
 
 ### 2. Install dependencies
-``bash
+```bash
 npm install
 ```
 
-### 3. Start the server
+### 3. Environment Setup
+Create a `.env` file in the root directory and configure your MongoDB connection:
+```env
+MONGODB_URI=mongodb://localhost:27017/CHAT-APP
+PORT=3000
+```
+
+### 4. Start the server
 ```bash
 npm start
 ```
 
-### 4. Open in browser
+### 5. Open in browser
 Visit **[http://localhost:3000](http://localhost:3000)** (or your local IP address for multi-device testing).
 
 ---
@@ -62,7 +69,7 @@ node server/server.js & ssh -R 80:localhost:3000 nokey@localhost.run
 wavetalk-main/
 ├── server/
 │   ├── server.js          # HTTP static file server + WebSocket gateway
-│   └── db.js              # Persistent database manager (Users, History, Encrypted DMs)
+│   └── db.js              # MongoDB database manager (Users, History, Encrypted DMs)
 ├── public/
 │   ├── index.html         # HTML5 interface and modals
 │   ├── style.css          # Modern dark slate CSS design system
@@ -72,9 +79,8 @@ wavetalk-main/
 │   ├── run.js             # Cross-version test runner
 │   ├── chat.test.js       # Database unit tests
 │   └── websocket_e2e.test.js # Multi-client E2E integration test
-├── data/
-│   └── chat_database.json # Persistent database file
-└── package.json           # Scripts and dependencies
+├── .env                   # Environment variables (MONGODB_URI, PORT)
+└── package.json           # Scripts and dependencies (mongodb, bcryptjs, dotenv)
 ```
 
 ---

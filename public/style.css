@@ -1022,6 +1022,28 @@ html, body {
   margin-left: 6px;
 }
 
+/* Read Receipts / Double Ticks */
+.read-status {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 5px;
+  color: #64748b;
+  vertical-align: middle;
+  transition: color 0.2s ease, transform 0.15s ease;
+}
+
+.read-status svg {
+  display: block;
+}
+
+.read-status.read {
+  color: #10b981 !important; /* Green when seen / read */
+}
+
+.read-status.sent .tick-second {
+  display: none; /* Single tick for sent */
+}
+
 /* Typing Indicator */
 .typing-indicator {
   padding: 6px 24px;

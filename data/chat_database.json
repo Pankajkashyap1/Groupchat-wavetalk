@@ -6,7 +6,7 @@
       "pinHash": "895bb957e4b5afb5acd798879572795bc5e363f7b884d688c902575a163796bb",
       "salt": "1b1906db245693c2d89b0054bb57eaae",
       "joinedAt": 1786902492380,
-      "lastSeen": 1786903925179,
+      "lastSeen": 1786907542237,
       "avatarColor": {
         "bg": "#4f46e5",
         "fg": "#ffffff"
@@ -42,7 +42,31 @@
       "pinHash": "f98064f5545d5b464f41663bee9d62d6a8399b64a450fd37fe7701fdc2e19a7d",
       "salt": "4780bc3d7a8fa831985fde9569be0b49",
       "joinedAt": 1786903659432,
-      "lastSeen": 1786903948944,
+      "lastSeen": 1786907542239,
+      "avatarColor": {
+        "bg": "#0891b2",
+        "fg": "#ffffff"
+      }
+    },
+    "aashu": {
+      "id": "usr_035dca4f",
+      "username": "aashu",
+      "pinHash": "100ca8ca9b2de37e8cbd8c62ac3921b70d12d7272c244734ebdcb31268beddb1",
+      "salt": "db8f2aafe79e3f3da43177cafaaab6b4",
+      "joinedAt": 1786905361318,
+      "lastSeen": 1786905375542,
+      "avatarColor": {
+        "bg": "#0891b2",
+        "fg": "#ffffff"
+      }
+    },
+    "aashupanaj": {
+      "id": "usr_19623a29",
+      "username": "aashupanaj",
+      "pinHash": "3892dab7f2f0da04c4a452c7c7b3fb44920946dd5d0eabe963364add447cc575",
+      "salt": "0a38e8b2d888d77b52cfabd2837ad478",
+      "joinedAt": 1786905380644,
+      "lastSeen": 1786905390117,
       "avatarColor": {
         "bg": "#0891b2",
         "fg": "#ffffff"
@@ -169,6 +193,14 @@
       "type": "chat",
       "meta": {},
       "timestamp": 1786903669822
+    },
+    {
+      "id": "grp_1786905368150_uilzd",
+      "sender": "aashu",
+      "text": "hi",
+      "type": "chat",
+      "meta": {},
+      "timestamp": 1786905368150
     }
   ],
   "personalMessages": [
@@ -193,6 +225,17 @@
       "meta": {},
       "read": false,
       "timestamp": 1786902891668
+    },
+    {
+      "id": "pm_1786905384579_kjt2s",
+      "sender": "aashupanaj",
+      "recipient": "aayush",
+      "ciphertext": "+rMC6vdUDOeEt5y1W5dmZ1JX",
+      "iv": "zvyVXotMLLPz0p61",
+      "salt": "",
+      "meta": {},
+      "read": false,
+      "timestamp": 1786905384579
     }
   ]
 }

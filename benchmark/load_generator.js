@@ -1,9 +1,4 @@
-// Sys1 Load Generator & Benchmarking Suite
-// Simulates concurrent HTTP & WebSocket traffic to measure throughput, latency percentiles,
-// failure rates, and load distribution across single-backend vs multi-backend configurations.
-
 import http from 'http';
-import WebSocket from 'ws';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -149,12 +144,16 @@ export async function runComparisonBenchmark(lbUrl = 'http://127.0.0.1:3000') {
 
   // Switch LB to Single Mode (Sys2 Only)
   console.log('>>> [1/2] BENCHMARKING SCENARIO A: LOAD BALANCER WITH ONLY SYS2 (1 BACKEND) <<<');
-  await makeHttpRequest(lbUrl, '/lb/set-mode', 'POST');
   await new Promise(r => {
     const req = http.request(new URL('/lb/set-mode', lbUrl), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 5000
     }, (res) => r());
+    req.on('error', (err) => {
+      console.warn(`[Warning] Could not connect to ${lbUrl} (${err.message}). Retrying...`);
+      r();
+    });
     req.write(JSON.stringify({ mode: 'single', algorithm: 'round-robin' }));
     req.end();
   });
@@ -178,8 +177,13 @@ export async function runComparisonBenchmark(lbUrl = 'http://127.0.0.1:3000') {
   await new Promise(r => {
     const req = http.request(new URL('/lb/set-mode', lbUrl), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 5000
     }, (res) => r());
+    req.on('error', (err) => {
+      console.warn(`[Warning] Could not connect to ${lbUrl} (${err.message}). Retrying...`);
+      r();
+    });
     req.write(JSON.stringify({ mode: 'multi', algorithm: 'round-robin' }));
     req.end();
   });

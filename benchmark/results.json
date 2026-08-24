@@ -1,0 +1,388 @@
+{
+  "metadata": {
+    "title": "CS559 Load Balancer Performance Evaluation",
+    "timestamp": "2026-08-24T16:44:15.049Z",
+    "studentName": "Pankaj Kashyap",
+    "rollNumber": "230101053",
+    "department": "Department of Computer Science & Engineering, IIT Bhilai",
+    "systems": {
+      "Sys1": {
+        "role": "Load Balancer",
+        "ip": "10.30.5.247 / localhost",
+        "port": 3000,
+        "algorithm": "Round-Robin / Least-Connections"
+      },
+      "Sys2": {
+        "role": "Backend Instance 1",
+        "ip": "10.30.5.247 / localhost",
+        "port": 3001,
+        "status": "Active"
+      },
+      "Sys3": {
+        "role": "Backend Instance 2",
+        "ip": "10.30.5.247 / localhost",
+        "port": 3002,
+        "status": "Active"
+      },
+      "Sys4": {
+        "role": "Backend Instance 3",
+        "ip": "10.30.5.247 / localhost",
+        "port": 3003,
+        "status": "Active"
+      }
+    }
+  },
+  "summary": {
+    "avgSingleRps": 1122.3,
+    "avgMultiRps": 1150.2,
+    "overallSpeedupFactor": 1.02,
+    "avgSingleLatencyMs": 149.98,
+    "avgMultiLatencyMs": 146.05,
+    "overallLatencyDropPercent": 2.6,
+    "totalRequestsEvaluated": 20000
+  },
+  "websocketBenchmark": {
+    "concurrentClients": 50,
+    "messagesPerClient": 10,
+    "connectDurationMs": 66,
+    "totalTrackedMessages": 0,
+    "avgLatencyMs": 0,
+    "p95LatencyMs": 0
+  },
+  "comparison": [
+    {
+      "concurrency": 20,
+      "totalRequests": 2000,
+      "singleRps": 889.68,
+      "multiRps": 1079.91,
+      "speedupFactor": 1.21,
+      "speedupText": "1.21x",
+      "singleAvgMs": 22.31,
+      "multiAvgMs": 18.38,
+      "singleP50Ms": 19.94,
+      "multiP50Ms": 18.37,
+      "singleP90Ms": 28.07,
+      "multiP90Ms": 22.13,
+      "singleP95Ms": 35.82,
+      "multiP95Ms": 23.56,
+      "singleP99Ms": 91.76,
+      "multiP99Ms": 29.28,
+      "latencyReductionPercent": 17.6,
+      "latencyDropText": "17.6%",
+      "singleDistribution": {
+        "Sys2": 2000
+      },
+      "multiDistribution": {
+        "Sys2": 667,
+        "Sys4": 666,
+        "Sys3": 667
+      }
+    },
+    {
+      "concurrency": 50,
+      "totalRequests": 2000,
+      "singleRps": 1119.19,
+      "multiRps": 1207.73,
+      "speedupFactor": 1.08,
+      "speedupText": "1.08x",
+      "singleAvgMs": 44.29,
+      "multiAvgMs": 41.03,
+      "singleP50Ms": 41.81,
+      "multiP50Ms": 41.1,
+      "singleP90Ms": 58.57,
+      "multiP90Ms": 48.1,
+      "singleP95Ms": 64.2,
+      "multiP95Ms": 50.35,
+      "singleP99Ms": 95.96,
+      "multiP99Ms": 55.62,
+      "latencyReductionPercent": 7.4,
+      "latencyDropText": "7.4%",
+      "singleDistribution": {
+        "Sys2": 2000
+      },
+      "multiDistribution": {
+        "Sys4": 667,
+        "Sys2": 667,
+        "Sys3": 666
+      }
+    },
+    {
+      "concurrency": 100,
+      "totalRequests": 2000,
+      "singleRps": 1464.13,
+      "multiRps": 1190.48,
+      "speedupFactor": 0.81,
+      "speedupText": "0.81x",
+      "singleAvgMs": 67.45,
+      "multiAvgMs": 82.97,
+      "singleP50Ms": 67.43,
+      "multiP50Ms": 78.01,
+      "singleP90Ms": 79.24,
+      "multiP90Ms": 95.72,
+      "singleP95Ms": 81.8,
+      "multiP95Ms": 130.19,
+      "singleP99Ms": 88.99,
+      "multiP99Ms": 181.18,
+      "latencyReductionPercent": -23,
+      "latencyDropText": "-23.0%",
+      "singleDistribution": {
+        "Sys2": 2000
+      },
+      "multiDistribution": {
+        "Sys3": 667,
+        "Sys4": 667,
+        "Sys2": 666
+      }
+    },
+    {
+      "concurrency": 200,
+      "totalRequests": 2000,
+      "singleRps": 1038.42,
+      "multiRps": 1160.77,
+      "speedupFactor": 1.12,
+      "speedupText": "1.12x",
+      "singleAvgMs": 188.67,
+      "multiAvgMs": 167.3,
+      "singleP50Ms": 172.74,
+      "multiP50Ms": 168.74,
+      "singleP90Ms": 278.69,
+      "multiP90Ms": 201.89,
+      "singleP95Ms": 297.63,
+      "multiP95Ms": 207.22,
+      "singleP99Ms": 309.06,
+      "multiP99Ms": 216.96,
+      "latencyReductionPercent": 11.3,
+      "latencyDropText": "11.3%",
+      "singleDistribution": {
+        "Sys2": 2000
+      },
+      "multiDistribution": {
+        "Sys2": 667,
+        "Sys3": 667,
+        "Sys4": 666
+      }
+    },
+    {
+      "concurrency": 500,
+      "totalRequests": 2000,
+      "singleRps": 1100.11,
+      "multiRps": 1112.35,
+      "speedupFactor": 1.01,
+      "speedupText": "1.01x",
+      "singleAvgMs": 427.19,
+      "multiAvgMs": 420.58,
+      "singleP50Ms": 451.83,
+      "multiP50Ms": 418.29,
+      "singleP90Ms": 529.83,
+      "multiP90Ms": 506.05,
+      "singleP95Ms": 563.2,
+      "multiP95Ms": 521.45,
+      "singleP99Ms": 615.72,
+      "multiP99Ms": 540.23,
+      "latencyReductionPercent": 1.5,
+      "latencyDropText": "1.5%",
+      "singleDistribution": {
+        "Sys2": 2000
+      },
+      "multiDistribution": {
+        "Sys4": 667,
+        "Sys2": 667,
+        "Sys3": 666
+      }
+    }
+  ],
+  "singleBackendDetails": [
+    {
+      "concurrency": 20,
+      "totalRequests": 2000,
+      "successful": 2000,
+      "failed": 0,
+      "durationSec": 2.25,
+      "rps": 889.68,
+      "avgLatencyMs": 22.31,
+      "minLatencyMs": 11.8,
+      "p50LatencyMs": 19.94,
+      "p90LatencyMs": 28.07,
+      "p95LatencyMs": 35.82,
+      "p99LatencyMs": 91.76,
+      "maxLatencyMs": 130.77,
+      "backendDistribution": {
+        "Sys2": 2000
+      }
+    },
+    {
+      "concurrency": 50,
+      "totalRequests": 2000,
+      "successful": 2000,
+      "failed": 0,
+      "durationSec": 1.79,
+      "rps": 1119.19,
+      "avgLatencyMs": 44.29,
+      "minLatencyMs": 21.52,
+      "p50LatencyMs": 41.81,
+      "p90LatencyMs": 58.57,
+      "p95LatencyMs": 64.2,
+      "p99LatencyMs": 95.96,
+      "maxLatencyMs": 105.23,
+      "backendDistribution": {
+        "Sys2": 2000
+      }
+    },
+    {
+      "concurrency": 100,
+      "totalRequests": 2000,
+      "successful": 2000,
+      "failed": 0,
+      "durationSec": 1.37,
+      "rps": 1464.13,
+      "avgLatencyMs": 67.45,
+      "minLatencyMs": 30.5,
+      "p50LatencyMs": 67.43,
+      "p90LatencyMs": 79.24,
+      "p95LatencyMs": 81.8,
+      "p99LatencyMs": 88.99,
+      "maxLatencyMs": 91.46,
+      "backendDistribution": {
+        "Sys2": 2000
+      }
+    },
+    {
+      "concurrency": 200,
+      "totalRequests": 2000,
+      "successful": 2000,
+      "failed": 0,
+      "durationSec": 1.93,
+      "rps": 1038.42,
+      "avgLatencyMs": 188.67,
+      "minLatencyMs": 67.44,
+      "p50LatencyMs": 172.74,
+      "p90LatencyMs": 278.69,
+      "p95LatencyMs": 297.63,
+      "p99LatencyMs": 309.06,
+      "maxLatencyMs": 311.86,
+      "backendDistribution": {
+        "Sys2": 2000
+      }
+    },
+    {
+      "concurrency": 500,
+      "totalRequests": 2000,
+      "successful": 2000,
+      "failed": 0,
+      "durationSec": 1.82,
+      "rps": 1100.11,
+      "avgLatencyMs": 427.19,
+      "minLatencyMs": 211.91,
+      "p50LatencyMs": 451.83,
+      "p90LatencyMs": 529.83,
+      "p95LatencyMs": 563.2,
+      "p99LatencyMs": 615.72,
+      "maxLatencyMs": 619.12,
+      "backendDistribution": {
+        "Sys2": 2000
+      }
+    }
+  ],
+  "multiBackendDetails": [
+    {
+      "concurrency": 20,
+      "totalRequests": 2000,
+      "successful": 2000,
+      "failed": 0,
+      "durationSec": 1.85,
+      "rps": 1079.91,
+      "avgLatencyMs": 18.38,
+      "minLatencyMs": 1.4,
+      "p50LatencyMs": 18.37,
+      "p90LatencyMs": 22.13,
+      "p95LatencyMs": 23.56,
+      "p99LatencyMs": 29.28,
+      "maxLatencyMs": 59.07,
+      "backendDistribution": {
+        "Sys2": 667,
+        "Sys4": 666,
+        "Sys3": 667
+      }
+    },
+    {
+      "concurrency": 50,
+      "totalRequests": 2000,
+      "successful": 2000,
+      "failed": 0,
+      "durationSec": 1.66,
+      "rps": 1207.73,
+      "avgLatencyMs": 41.03,
+      "minLatencyMs": 22.57,
+      "p50LatencyMs": 41.1,
+      "p90LatencyMs": 48.1,
+      "p95LatencyMs": 50.35,
+      "p99LatencyMs": 55.62,
+      "maxLatencyMs": 59.7,
+      "backendDistribution": {
+        "Sys4": 667,
+        "Sys2": 667,
+        "Sys3": 666
+      }
+    },
+    {
+      "concurrency": 100,
+      "totalRequests": 2000,
+      "successful": 2000,
+      "failed": 0,
+      "durationSec": 1.68,
+      "rps": 1190.48,
+      "avgLatencyMs": 82.97,
+      "minLatencyMs": 38.06,
+      "p50LatencyMs": 78.01,
+      "p90LatencyMs": 95.72,
+      "p95LatencyMs": 130.19,
+      "p99LatencyMs": 181.18,
+      "maxLatencyMs": 197.15,
+      "backendDistribution": {
+        "Sys3": 667,
+        "Sys4": 667,
+        "Sys2": 666
+      }
+    },
+    {
+      "concurrency": 200,
+      "totalRequests": 2000,
+      "successful": 2000,
+      "failed": 0,
+      "durationSec": 1.72,
+      "rps": 1160.77,
+      "avgLatencyMs": 167.3,
+      "minLatencyMs": 83.37,
+      "p50LatencyMs": 168.74,
+      "p90LatencyMs": 201.89,
+      "p95LatencyMs": 207.22,
+      "p99LatencyMs": 216.96,
+      "maxLatencyMs": 226.3,
+      "backendDistribution": {
+        "Sys2": 667,
+        "Sys3": 667,
+        "Sys4": 666
+      }
+    },
+    {
+      "concurrency": 500,
+      "totalRequests": 2000,
+      "successful": 2000,
+      "failed": 0,
+      "durationSec": 1.8,
+      "rps": 1112.35,
+      "avgLatencyMs": 420.58,
+      "minLatencyMs": 216.79,
+      "p50LatencyMs": 418.29,
+      "p90LatencyMs": 506.05,
+      "p95LatencyMs": 521.45,
+      "p99LatencyMs": 540.23,
+      "maxLatencyMs": 597.46,
+      "backendDistribution": {
+        "Sys4": 667,
+        "Sys2": 667,
+        "Sys3": 666
+      }
+    }
+  ]
+}

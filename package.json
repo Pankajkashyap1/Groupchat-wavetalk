@@ -6,6 +6,10 @@
   "type": "module",
   "scripts": {
     "start": "node server/server.js",
+    "start:cluster": "node server/cluster_launcher.js",
+    "start:lb": "node loadbalancer/load_balancer.js",
+    "benchmark": "node benchmark/load_generator.js",
+    "benchmark:ws": "node benchmark/ws_benchmark.js",
     "dev": "node server/server.js",
     "test": "node tests/run.js"
   },

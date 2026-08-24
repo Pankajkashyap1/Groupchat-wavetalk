@@ -295,18 +295,19 @@ export class ChatDatabase {
   markPersonalMessagesAsRead(recipient, sender) {
     const r = (recipient || '').toLowerCase();
     const s = (sender || '').toLowerCase();
-    let updated = false;
+    const updatedIds = [];
 
     for (const msg of this.data.personalMessages) {
       if (msg.recipient.toLowerCase() === r && msg.sender.toLowerCase() === s && !msg.read) {
         msg.read = true;
-        updated = true;
+        updatedIds.push(msg.id);
       }
     }
 
-    if (updated) {
+    if (updatedIds.length > 0) {
       this.scheduleSave();
     }
+    return updatedIds;
   }
 }
 

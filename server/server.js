@@ -15,6 +15,7 @@ const __dirname = path.dirname(__filename);
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 
 const PORT = process.env.PORT || 3000;
+const INSTANCE_ID = process.env.INSTANCE_ID || `Sys2:${PORT}`;
 
 // MIME types dictionary for static file serving
 const MIME_TYPES = {
@@ -32,6 +33,10 @@ const MIME_TYPES = {
 
 // HTTP Server
 const server = http.createServer((req, res) => {
+  res.setHeader('X-Backend-Server', INSTANCE_ID);
+  res.setHeader('X-Backend-Port', String(PORT));
+  res.setHeader('Access-Control-Allow-Origin', '*');
+
   const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   let pathname = urlObj.pathname;
 
@@ -40,6 +45,8 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({
       status: 'ok',
+      instance: INSTANCE_ID,
+      port: Number(PORT),
       uptime: process.uptime(),
       onlineUsers: getOnlineUsernames().length,
       totalUsers: db.getAllUsers().length,
@@ -302,11 +309,13 @@ wss.on('connection', (ws, req) => {
       });
 
       // Send confirmation / echo to all active sockets of the sender
+      const isRecipientOnline = recipientSockets.length > 0;
       const senderSockets = getSocketsForUser(currentUsername);
       senderSockets.forEach(sock => {
         sendJson(sock, {
           type: 'personal_message_sent',
-          message: savedMsg
+          message: savedMsg,
+          delivered: isRecipientOnline
         });
       });
 
@@ -320,13 +329,25 @@ wss.on('connection', (ws, req) => {
       if (!partner) return;
 
       const history = db.getPersonalHistory(currentUsername, partner, 100);
-      db.markPersonalMessagesAsRead(currentUsername, partner);
+      const updatedIds = db.markPersonalMessagesAsRead(currentUsername, partner);
 
       sendJson(ws, {
         type: 'personal_history',
         partner,
         history
       });
+
+      // Notify partner (the sender) that their messages were read
+      if (updatedIds.length > 0) {
+        const partnerSockets = getSocketsForUser(partner);
+        partnerSockets.forEach(sock => {
+          sendJson(sock, {
+            type: 'messages_read_by_partner',
+            partner: currentUsername,
+            messageIds: updatedIds
+          });
+        });
+      }
       return;
     }
 
@@ -358,8 +379,19 @@ wss.on('connection', (ws, req) => {
     if (type === 'mark_read') {
       const { sender } = payload || {};
       if (sender) {
-        db.markPersonalMessagesAsRead(currentUsername, sender);
+        const updatedIds = db.markPersonalMessagesAsRead(currentUsername, sender);
         sendJson(ws, { type: 'marked_read_ok', sender });
+
+        if (updatedIds.length > 0) {
+          const senderSockets = getSocketsForUser(sender);
+          senderSockets.forEach(sock => {
+            sendJson(sock, {
+              type: 'messages_read_by_partner',
+              partner: currentUsername,
+              messageIds: updatedIds
+            });
+          });
+        }
       }
       return;
     }

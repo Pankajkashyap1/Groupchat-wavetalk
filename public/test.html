@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>WaveTalk — Live Load Balancer Tester & Benchmark Dashboard</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0f172a;
+    color: #f8fafc;
+    padding: 20px;
+    line-height: 1.5;
+  }
+  .container { max-width: 900px; margin: 0 auto; }
+  .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; padding-bottom: 15px; margin-bottom: 20px; }
+  h1 { font-size: 20px; color: #38bdf8; }
+  .badge { background: #0284c7; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+  .card {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+  }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 15px 0; }
+  .stat-card {
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    padding: 12px;
+    text-align: center;
+  }
+  .stat-val { font-size: 24px; font-weight: 700; color: #38bdf8; }
+  .stat-label { font-size: 11px; color: #94a3b8; text-transform: uppercase; margin-top: 4px; }
+  label { display: block; font-size: 12px; color: #94a3b8; margin-bottom: 5px; font-weight: 600; }
+  input, select {
+    width: 100%;
+    background: #0f172a;
+    border: 1px solid #475569;
+    border-radius: 6px;
+    color: #f8fafc;
+    padding: 8px 12px;
+    font-size: 14px;
+  }
+  button {
+    background: #2563eb;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 18px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  button:hover { background: #1d4ed8; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-stop { background: #dc2626; }
+  .btn-stop:hover { background: #b91c1c; }
+  .log-box {
+    background: #020617;
+    border: 1px solid #1e293b;
+    border-radius: 6px;
+    padding: 12px;
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 12px;
+    height: 220px;
+    overflow-y: auto;
+    color: #cbd5e1;
+    white-space: pre-wrap;
+  }
+  .live-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #10b981; display: inline-block; margin-right: 6px;
+    box-shadow: 0 0 8px #10b981;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <div>
+      <h1><span class="live-dot"></span> WaveTalk Load Balancer Testing Suite</h1>
+      <p style="font-size: 12px; color: #94a3b8; margin-top: 4px;">Instant client-side stress testing &amp; validation for Lab 6</p>
+    </div>
+    <span class="badge">No Cooldown • Instant</span>
+  </div>
+
+  <div class="card">
+    <div class="grid-2">
+      <div>
+        <label>Target Load Balancer URL</label>
+        <input type="text" id="targetUrl" value="http://10.1.75.51:3257" placeholder="http://10.1.75.51:3257">
+      </div>
+      <div>
+        <label>Concurrency (Concurrent Users)</label>
+        <select id="userCount">
+          <option value="10">10 concurrent users</option>
+          <option value="50">50 concurrent users</option>
+          <option value="100" selected>100 concurrent users</option>
+          <option value="250">250 concurrent users (Stage 1)</option>
+          <option value="500">500 concurrent users (Stage 2)</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 10px; margin-top: 15px;">
+      <button id="btnStart" onclick="startTest()">🚀 Run Stress Test</button>
+      <button id="btnFeed" onclick="checkFeed()" style="background:#059669;">📋 Check /feed</button>
+      <button id="btnStatus" onclick="checkStatus()" style="background:#475569;">📊 Check /lb/status</button>
+      <button id="btnStop" onclick="stopTest()" class="btn-stop" style="display:none;">⏹ Stop</button>
+    </div>
+  </div>
+
+  <!-- Real-time metrics -->
+  <div class="grid-4">
+    <div class="stat-card">
+      <div class="stat-val" id="valTotal">0</div>
+      <div class="stat-label">Requests Sent</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val" id="valRps" style="color:#10b981;">0</div>
+      <div class="stat-label">Live Throughput (RPS)</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val" id="valAvgRt" style="color:#f59e0b;">0 ms</div>
+      <div class="stat-label">Avg Response Time</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val" id="valErr" style="color:#ef4444;">0%</div>
+      <div class="stat-label">Error Rate</div>
+    </div>
+  </div>
+
+  <!-- Log console -->
+  <div class="card">
+    <label>Live Test Log</label>
+    <div class="log-box" id="logBox">Ready. Choose concurrency and click "Run Stress Test" to test immediately without waiting for the 30-minute leaderboard cooldown.</div>
+  </div>
+</div>
+
+<script>
+let running = false;
+let totalReqs = 0, successReqs = 0, errReqs = 0;
+let latencies = [];
+let startTime = 0;
+
+function log(msg) {
+  const box = document.getElementById('logBox');
+  box.textContent += `\n[${new Date().toLocaleTimeString()}] ${msg}`;
+  box.scrollTop = box.scrollHeight;
+}
+
+async function checkFeed() {
+  const target = document.getElementById('targetUrl').value.replace(/\/$/, '');
+  log(`Fetching ${target}/feed ...`);
+  const t0 = performance.now();
+  try {
+    const res = await fetch(`${target}/feed`);
+    const ms = Math.round(performance.now() - t0);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    log(`✅ /feed returned HTTP 200 in ${ms}ms. Total persisted messages: ${data.length}`);
+  } catch (e) {
+    log(`❌ /feed failed: ${e.message}`);
+  }
+}
+
+async function checkStatus() {
+  const target = document.getElementById('targetUrl').value.replace(/\/$/, '');
+  log(`Fetching ${target}/lb/status ...`);
+  try {
+    const res = await fetch(`${target}/lb/status`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    log(`📊 LB Status: Algorithm=${data.algorithm}, Active=${data.activeBackend}, Threshold=${data.threshold}`);
+    data.backends.forEach(b => {
+      log(`   - ${b.id}: healthy=${b.healthy}, score=${b.loadScore}, reqs=${b.requestsHandled}, cpu=${b.cpuLoad}%`);
+    });
+  } catch (e) {
+    log(`❌ /lb/status failed: ${e.message}`);
+  }
+}
+
+async function startTest() {
+  const target = document.getElementById('targetUrl').value.replace(/\/$/, '');
+  const concurrency = parseInt(document.getElementById('userCount').value);
+
+  running = true;
+  totalReqs = 0; successReqs = 0; errReqs = 0;
+  latencies = [];
+  startTime = performance.now();
+
+  document.getElementById('btnStart').style.display = 'none';
+  document.getElementById('btnStop').style.display = 'inline-block';
+  log(`🚀 Starting stress test: ${concurrency} concurrent workers targeting ${target}/message`);
+
+  const timer = setInterval(() => {
+    if (!running) { clearInterval(timer); return; }
+    const elapsedSec = (performance.now() - startTime) / 1000;
+    const rps = Math.round(successReqs / Math.max(elapsedSec, 0.1));
+    const avgRt = latencies.length ? Math.round(latencies.reduce((a,b)=>a+b,0) / latencies.length) : 0;
+    const errRate = totalReqs ? Math.round((errReqs / totalReqs) * 100) : 0;
+
+    document.getElementById('valTotal').textContent = totalReqs;
+    document.getElementById('valRps').textContent = rps;
+    document.getElementById('valAvgRt').textContent = avgRt + ' ms';
+    document.getElementById('valErr').textContent = errRate + '%';
+  }, 300);
+
+  const workers = Array.from({ length: concurrency }, (_, i) => runWorker(target, i + 1));
+  await Promise.all(workers);
+
+  running = false;
+  document.getElementById('btnStart').style.display = 'inline-block';
+  document.getElementById('btnStop').style.display = 'none';
+  log(`🏁 Test completed! Total requests: ${totalReqs}, Success: ${successReqs}, Errors: ${errReqs}`);
+}
+
+async function runWorker(target, userId) {
+  let count = 0;
+  while (running && count < 20) {
+    count++;
+    totalReqs++;
+    const t0 = performance.now();
+    try {
+      const res = await fetch(`${target}/message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          'client-name': `user_${userId}`,
+          msg: `Stress test message ${count} from user ${userId}`
+        })
+      });
+      const ms = Math.round(performance.now() - t0);
+      latencies.push(ms);
+      if (res.ok) successReqs++; else errReqs++;
+    } catch {
+      errReqs++;
+    }
+    await new Promise(r => setTimeout(r, 50));
+  }
+}
+
+function stopTest() {
+  running = false;
+  log('⏹ Stopping test...');
+}
+</script>
+
+</body>
+</html>

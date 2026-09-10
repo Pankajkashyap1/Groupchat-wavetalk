@@ -1,259 +1,200 @@
+// WaveTalk Variable Load Generator & Benchmarking Engine
+// Features: variable users, random message lengths, random intervals, full stats + plots
+
 import http from 'http';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import https from 'https';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const TARGET_URL = process.env.TARGET_URL || 'http://127.0.0.1:3000';
+const NUM_USERS   = Number(process.env.USERS)    || 20;
+const DURATION_MS = Number(process.env.DURATION) || 15000;  // 15s per tier
+const MIN_MSG_LEN = 10;
+const MAX_MSG_LEN = 300;
+const MIN_INTERVAL_MS = 100;
+const MAX_INTERVAL_MS = 1500;
 
-// Helper to compute percentiles
-function getPercentile(sortedArr, p) {
-  if (sortedArr.length === 0) return 0;
-  const index = Math.min(Math.floor(sortedArr.length * (p / 100)), sortedArr.length - 1);
-  return sortedArr[index];
+const WORDS = ['hello','world','test','load','wavetalk','message','chat','node','server',
+  'distributed','performance','latency','throughput','backend','cluster','iitbhilai',
+  'network','request','response','proxy','balancer','concurrent','async','stream'];
+
+function randomMsg() {
+  const len = MIN_MSG_LEN + Math.floor(Math.random() * (MAX_MSG_LEN - MIN_MSG_LEN));
+  let msg = '';
+  while (msg.length < len) msg += WORDS[Math.floor(Math.random()*WORDS.length)] + ' ';
+  return msg.trim().slice(0, len);
 }
 
-// Single HTTP Request with timing and header capture
-function makeHttpRequest(targetUrl, path = '/api/status', method = 'GET') {
+function randomInterval() {
+  return MIN_INTERVAL_MS + Math.floor(Math.random() * (MAX_INTERVAL_MS - MIN_INTERVAL_MS));
+}
+
+function httpRequest(url, method, body) {
   return new Promise((resolve) => {
-    const urlObj = new URL(path, targetUrl);
-    const start = process.hrtime.bigint();
-    
-    const req = http.request({
-      hostname: urlObj.hostname,
-      port: urlObj.port,
-      path: urlObj.pathname + (urlObj.search || ''),
-      method: method,
-      timeout: 5000,
+    const start = Date.now();
+    const urlObj = new URL(url);
+    const lib = urlObj.protocol === 'https:' ? https : http;
+    const data = body ? JSON.stringify(body) : null;
+
+    const req = lib.request({
+      host: urlObj.hostname,
+      port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80),
+      path: urlObj.pathname + urlObj.search,
+      method,
       headers: {
-        'Connection': 'keep-alive',
-        'User-Agent': 'Sys1-LoadGenerator/1.0'
-      }
+        'Content-Type': 'application/json',
+        ...(data ? { 'Content-Length': Buffer.byteLength(data) } : {})
+      },
+      timeout: 10000
     }, (res) => {
-      let body = '';
-      res.on('data', chunk => body += chunk);
-      res.on('end', () => {
-        const end = process.hrtime.bigint();
-        const latencyMs = Number(end - start) / 1e6;
-        const servedBy = res.headers['x-served-by'] || 'Unknown';
-        resolve({
-          success: res.statusCode >= 200 && res.statusCode < 400,
-          statusCode: res.statusCode,
-          latencyMs,
-          servedBy
-        });
-      });
+      let raw = '';
+      res.on('data', c => { raw += c; });
+      res.on('end', () => resolve({ ok: res.statusCode < 400, status: res.statusCode, ms: Date.now()-start, body: raw }));
     });
 
-    req.on('timeout', () => {
-      req.destroy();
-      const end = process.hrtime.bigint();
-      resolve({
-        success: false,
-        statusCode: 504,
-        latencyMs: Number(end - start) / 1e6,
-        servedBy: 'Timeout'
-      });
-    });
+    req.on('error', () => resolve({ ok: false, status: 0, ms: Date.now()-start, body: '' }));
+    req.on('timeout', () => { req.destroy(); resolve({ ok: false, status: 408, ms: 10000, body: '' }); });
 
-    req.on('error', (err) => {
-      const end = process.hrtime.bigint();
-      resolve({
-        success: false,
-        statusCode: 500,
-        latencyMs: Number(end - start) / 1e6,
-        servedBy: 'Error: ' + err.code
-      });
-    });
-
+    if (data) req.write(data);
     req.end();
   });
 }
 
-// Run workload at specific concurrency and total requests
-export async function runWorkload({ targetUrl, concurrency, totalRequests, endpoints }) {
-  const latencies = [];
-  const backendCounts = {};
-  let successful = 0;
-  let failed = 0;
-  let activeIndex = 0;
+function stats(times) {
+  if (!times.length) return { min:0, max:0, avg:0, p50:0, p90:0, p95:0, p99:0 };
+  const sorted = [...times].sort((a,b) => a-b);
+  const pct = (p) => sorted[Math.min(Math.floor(sorted.length*p/100), sorted.length-1)];
+  const avg = Math.round(times.reduce((a,b)=>a+b,0) / times.length);
+  return { min: sorted[0], max: sorted[sorted.length-1], avg, p50: pct(50), p90: pct(90), p95: pct(95), p99: pct(99) };
+}
 
-  const startTime = Date.now();
+function bar(value, max, width=30, char='█') {
+  const filled = Math.round((value / Math.max(max,1)) * width);
+  return char.repeat(filled) + '░'.repeat(width - filled);
+}
 
-  const worker = async () => {
-    while (true) {
-      const current = activeIndex++;
-      if (current >= totalRequests) break;
+function printStats(label, results) {
+  const ok = results.filter(r=>r.ok).length;
+  const rts = results.map(r=>r.ms);
+  const s = stats(rts);
+  const rps = Math.round(ok / (DURATION_MS/1000) * 10) / 10;
+  console.log(`\n┌─ ${label} ${'─'.repeat(Math.max(0,50-label.length))}┐`);
+  console.log(`│  Requests: ${results.length} | Success: ${ok} | Errors: ${results.length-ok} | RPS: ${rps}`);
+  console.log(`│  Latency  — Min:${s.min}ms  Avg:${s.avg}ms  P95:${s.p95}ms  P99:${s.p99}ms  Max:${s.max}ms`);
+  console.log(`└${'─'.repeat(52)}┘`);
+  return { label, requests: results.length, success: ok, errors: results.length-ok, rps, ...s };
+}
 
-      const endpoint = endpoints[current % endpoints.length];
-      const result = await makeHttpRequest(targetUrl, endpoint);
+async function runScenario(label, userCount, durationMs) {
+  const results = [];
+  const lock = { done: false };
 
-      latencies.push(result.latencyMs);
-      if (result.success) {
-        successful++;
-        backendCounts[result.servedBy] = (backendCounts[result.servedBy] || 0) + 1;
-      } else {
-        failed++;
+  setTimeout(() => { lock.done = true; }, durationMs);
+
+  const users = Array.from({ length: userCount }, (_, i) => {
+    const name = `user${i+1}`;
+    return (async () => {
+      while (!lock.done) {
+        const msg = randomMsg();
+        const r = await httpRequest(`${TARGET_URL}/message`, 'POST', { 'client-name': name, msg });
+        results.push(r);
+        if (lock.done) break;
+        await new Promise(res => setTimeout(res, randomInterval()));
       }
-    }
-  };
-
-  // Spawn concurrent worker promises
-  const workers = [];
-  for (let i = 0; i < concurrency; i++) {
-    workers.push(worker());
-  }
-
-  await Promise.all(workers);
-
-  const durationSec = (Date.now() - startTime) / 1000;
-  latencies.sort((a, b) => a - b);
-
-  const total = successful + failed;
-  const rps = durationSec > 0 ? (total / durationSec) : 0;
-  const avgLatency = latencies.length > 0 ? (latencies.reduce((a, b) => a + b, 0) / latencies.length) : 0;
-
-  return {
-    concurrency,
-    totalRequests: total,
-    successful,
-    failed,
-    durationSec: Number(durationSec.toFixed(2)),
-    rps: Number(rps.toFixed(2)),
-    avgLatencyMs: Number(avgLatency.toFixed(2)),
-    minLatencyMs: Number((latencies[0] || 0).toFixed(2)),
-    p50LatencyMs: Number(getPercentile(latencies, 50).toFixed(2)),
-    p90LatencyMs: Number(getPercentile(latencies, 90).toFixed(2)),
-    p95LatencyMs: Number(getPercentile(latencies, 95).toFixed(2)),
-    p99LatencyMs: Number(getPercentile(latencies, 99).toFixed(2)),
-    maxLatencyMs: Number((latencies[latencies.length - 1] || 0).toFixed(2)),
-    backendDistribution: backendCounts
-  };
-}
-
-// Full Comparative Benchmark Test Runner
-export async function runComparisonBenchmark(lbUrl = 'http://127.0.0.1:3000') {
-  console.log('========================================================================');
-  console.log('            SYS1 LOAD GENERATOR & BENCHMARKING ENGINE                   ');
-  console.log(`Target Load Balancer: ${lbUrl}`);
-  console.log('========================================================================\n');
-
-  const concurrencyLevels = [20, 50, 100, 200, 500];
-  const requestsPerTier = 1500;
-  const endpoints = ['/api/status', '/api/users', '/index.html', '/style.css', '/app.js'];
-
-  // Switch LB to Single Mode (Sys2 Only)
-  console.log('>>> [1/2] BENCHMARKING SCENARIO A: LOAD BALANCER WITH ONLY SYS2 (1 BACKEND) <<<');
-  await new Promise(r => {
-    const req = http.request(new URL('/lb/set-mode', lbUrl), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      timeout: 5000
-    }, (res) => r());
-    req.on('error', (err) => {
-      console.warn(`[Warning] Could not connect to ${lbUrl} (${err.message}). Retrying...`);
-      r();
-    });
-    req.write(JSON.stringify({ mode: 'single', algorithm: 'round-robin' }));
-    req.end();
+    })();
   });
-  await new Promise(r => setTimeout(r, 1000));
 
-  const singleResults = [];
-  for (const c of concurrencyLevels) {
-    process.stdout.write(`  Running Concurrency=${c} (${requestsPerTier} reqs)... `);
-    const res = await runWorkload({
-      targetUrl: lbUrl,
-      concurrency: c,
-      totalRequests: requestsPerTier,
-      endpoints
-    });
-    singleResults.push(res);
-    console.log(`Done. RPS=${res.rps} | Avg=${res.avgLatencyMs}ms | P95=${res.p95LatencyMs}ms | Distribution:`, res.backendDistribution);
-  }
-
-  // Switch LB to Multi Mode (Sys2, Sys3, Sys4)
-  console.log('\n>>> [2/2] BENCHMARKING SCENARIO B: LOAD BALANCER WITH ALL 3 BACKENDS (SYS2, SYS3, SYS4) <<<');
-  await new Promise(r => {
-    const req = http.request(new URL('/lb/set-mode', lbUrl), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      timeout: 5000
-    }, (res) => r());
-    req.on('error', (err) => {
-      console.warn(`[Warning] Could not connect to ${lbUrl} (${err.message}). Retrying...`);
-      r();
-    });
-    req.write(JSON.stringify({ mode: 'multi', algorithm: 'round-robin' }));
-    req.end();
-  });
-  await new Promise(r => setTimeout(r, 1000));
-
-  const multiResults = [];
-  for (const c of concurrencyLevels) {
-    process.stdout.write(`  Running Concurrency=${c} (${requestsPerTier} reqs)... `);
-    const res = await runWorkload({
-      targetUrl: lbUrl,
-      concurrency: c,
-      totalRequests: requestsPerTier,
-      endpoints
-    });
-    multiResults.push(res);
-    console.log(`Done. RPS=${res.rps} | Avg=${res.avgLatencyMs}ms | P95=${res.p95LatencyMs}ms | Distribution:`, res.backendDistribution);
-  }
-
-  // Build Comparison Matrix
-  console.log('\n================================================================================================');
-  console.log('                          EMPIRICAL COMPARISON TABLE                                             ');
-  console.log('================================================================================================');
-  console.log('| Concurrency | 1-Backend RPS | 3-Backend RPS | Speedup | 1-Backend Avg (ms) | 3-Backend Avg (ms) | Latency Red. |');
-  console.log('|-------------|---------------|---------------|---------|--------------------|--------------------|--------------|');
-
-  const comparisonData = [];
-  for (let i = 0; i < concurrencyLevels.length; i++) {
-    const s = singleResults[i];
-    const m = multiResults[i];
-    const speedup = (m.rps / s.rps).toFixed(2) + 'x';
-    const latencyReduction = (((s.avgLatencyMs - m.avgLatencyMs) / s.avgLatencyMs) * 100).toFixed(1) + '%';
-
-    comparisonData.push({
-      concurrency: s.concurrency,
-      singleRps: s.rps,
-      multiRps: m.rps,
-      speedup,
-      singleAvgMs: s.avgLatencyMs,
-      multiAvgMs: m.avgLatencyMs,
-      singleP95Ms: s.p95LatencyMs,
-      multiP95Ms: m.p95LatencyMs,
-      singleP99Ms: s.p99LatencyMs,
-      multiP99Ms: m.p99LatencyMs,
-      latencyReduction,
-      singleDistribution: s.backendDistribution,
-      multiDistribution: m.backendDistribution
-    });
-
-    console.log(`| ${String(s.concurrency).padEnd(11)} | ${String(s.rps).padEnd(13)} | ${String(m.rps).padEnd(13)} | ${speedup.padEnd(7)} | ${String(s.avgLatencyMs).padEnd(18)} | ${String(m.avgLatencyMs).padEnd(18)} | ${latencyReduction.padEnd(12)} |`);
-  }
-
-  // Save to results.json
-  const finalReportData = {
-    timestamp: new Date().toISOString(),
-    loadBalancerUrl: lbUrl,
-    concurrencyTiers: concurrencyLevels,
-    singleBackendResults: singleResults,
-    multiBackendResults: multiResults,
-    comparison: comparisonData
-  };
-
-  const resultsPath = path.join(__dirname, 'results.json');
-  fs.writeFileSync(resultsPath, JSON.stringify(finalReportData, null, 2));
-  console.log(`\n[Results Saved] Exported structured results to: ${resultsPath}`);
-
-  return finalReportData;
+  await Promise.all(users);
+  return printStats(label, results);
 }
 
-// CLI Execution
-if (import.meta.url === `file://${process.argv[1]}` || (process.argv[1] && process.argv[1].endsWith('load_generator.js'))) {
-  const target = process.env.TARGET_URL || 'http://127.0.0.1:3000';
-  runComparisonBenchmark(target).catch(console.error);
+async function runFeedTest() {
+  console.log('\n[FEED TEST] GET /feed ...');
+  const results = [];
+  for (let i=0; i<10; i++) {
+    const r = await httpRequest(`${TARGET_URL}/feed`, 'GET');
+    results.push(r);
+  }
+  const s = stats(results.map(r=>r.ms));
+  const feedData = results[0]?.body || '[]';
+  let count = 0;
+  try { count = JSON.parse(feedData).length; } catch {}
+  console.log(`  /feed: ${count} messages | Avg latency: ${s.avg}ms | P95: ${s.p95}ms`);
+  return { feedMessages: count, avgMs: s.avg };
 }
+
+function printPlot(scenarios, metric, title, unit='ms') {
+  const max = Math.max(...scenarios.map(s=>s[metric]||0));
+  console.log(`\n━━━ ${title} ━━━`);
+  for (const s of scenarios) {
+    const val = s[metric] || 0;
+    console.log(`${String(s.label).padEnd(30)} ${bar(val,max,25)} ${val}${unit}`);
+  }
+}
+
+async function main() {
+  console.log('━'.repeat(60));
+  console.log('   WaveTalk VARIABLE LOAD GENERATOR & BENCHMARK ENGINE');
+  console.log(`   Target: ${TARGET_URL}`);
+  console.log(`   Users: ${NUM_USERS} | Duration/tier: ${DURATION_MS/1000}s`);
+  console.log(`   Msg length: ${MIN_MSG_LEN}–${MAX_MSG_LEN} chars | Interval: ${MIN_INTERVAL_MS}–${MAX_INTERVAL_MS}ms`);
+  console.log('━'.repeat(60));
+
+  // Test connectivity
+  console.log('\n[1] Checking connectivity...');
+  const pingR = await httpRequest(`${TARGET_URL}/feed`, 'GET');
+  if (!pingR.ok) {
+    console.error(`❌ Cannot reach ${TARGET_URL}/feed (status ${pingR.status})`);
+    console.error('   Make sure the Load Balancer is running on Sys1.');
+    process.exit(1);
+  }
+  console.log(`   ✅ Connected (${pingR.ms}ms)`);
+
+  // Concurrency tiers
+  const tiers = [
+    { label: 'C=5  (light)',    users: 5  },
+    { label: 'C=10 (moderate)', users: 10 },
+    { label: 'C=20 (medium)',   users: 20 },
+    { label: 'C=50 (heavy)',    users: 50 },
+    { label: 'C=100 (stress)',  users: 100 }
+  ];
+
+  const allResults = [];
+
+  console.log('\n[2] Running load tiers...\n');
+  for (const tier of tiers) {
+    process.stdout.write(`  Running ${tier.label} (${DURATION_MS/1000}s)... `);
+    const r = await runScenario(tier.label, tier.users, DURATION_MS);
+    allResults.push(r);
+    process.stdout.write('done\n');
+    await new Promise(res => setTimeout(res, 1000)); // cooldown between tiers
+  }
+
+  // Feed test
+  const feedResult = await runFeedTest();
+
+  // Plots
+  printPlot(allResults, 'avg', 'Average Response Time', 'ms');
+  printPlot(allResults, 'p95', 'P95 Response Time', 'ms');
+  printPlot(allResults, 'rps', 'Throughput (RPS)', ' req/s');
+
+  // Summary table
+  console.log('\n━━━ SUMMARY TABLE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('Label                          Reqs  OK  Err  RPS   Avg   P95   P99');
+  console.log('─'.repeat(72));
+  for (const r of allResults) {
+    console.log(
+      String(r.label).padEnd(30) + ' ' +
+      String(r.requests).padStart(5) + ' ' +
+      String(r.success).padStart(4) + ' ' +
+      String(r.errors).padStart(4) + ' ' +
+      String(r.rps).padStart(5) + ' ' +
+      String(r.avg+'ms').padStart(6) + ' ' +
+      String(r.p95+'ms').padStart(6) + ' ' +
+      String(r.p99+'ms').padStart(6)
+    );
+  }
+  console.log('─'.repeat(72));
+  console.log(`\nFeed check: ${feedResult.feedMessages} total messages persisted | Avg: ${feedResult.avgMs}ms`);
+  console.log('\n✅ Benchmark complete.\n');
+}
+
+main().catch(console.error);

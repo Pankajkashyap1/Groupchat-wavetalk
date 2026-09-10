@@ -19,11 +19,14 @@ console.log('=======================================================');
 console.log('Starting Backend Cluster: Sys2, Sys3, Sys4');
 console.log('=======================================================');
 
+const SHARED_DB = process.env.DB_FILE || path.join(__dirname, '..', 'data', 'chat_database.json');
+
 instances.forEach(({ id, port }) => {
   const env = {
     ...process.env,
     PORT: String(port),
-    INSTANCE_ID: id
+    INSTANCE_ID: id,
+    DB_FILE: SHARED_DB
   };
 
   const child = spawn(process.execPath, [SERVER_SCRIPT], {

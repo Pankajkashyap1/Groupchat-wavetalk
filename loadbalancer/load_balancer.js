@@ -1,359 +1,264 @@
-// Sys1: High-Performance HTTP & WebSocket Load Balancer
-// Handles reverse proxying, Round-Robin / Least-Connections scheduling,
-// active health checks, connection pooling, and live telemetry for Sys2, Sys3, Sys4.
+// WaveTalk Dynamic Performance-Based Load Balancer (Sys1)
+// Algorithm: Performance-Based Adaptive Threshold Switching
+// Metrics: Active Connections, CPU Load %, and Average Response Time
+// When current backend load exceeds THRESHOLD, traffic switches dynamically to the least-loaded backend.
+// Health Monitoring: Actively probes /api/metrics every 2.5s; evicts failed backends and auto-recovers.
 
 import http from 'http';
 import net from 'net';
-import url from 'url';
 
-export class LoadBalancer {
-  constructor(options = {}) {
-    this.port = options.port || parseInt(process.env.LB_PORT || '3000', 10);
-    this.algorithm = options.algorithm || 'round-robin'; // 'round-robin', 'least-connections', 'ip-hash'
-    this.mode = options.mode || process.env.LB_MODE || 'multi'; // 'single' (Sys2 only) or 'multi' (Sys2, Sys3, Sys4)
-    
-    // Backend pool definition
-    this.allBackends = [
-      {
-        id: 'Sys2',
-        host: process.env.SYS2_HOST || '127.0.0.1',
-        port: parseInt(process.env.SYS2_PORT || '3001', 10),
-        healthy: true,
-        activeConnections: 0,
-        totalRequests: 0,
-        totalBytes: 0,
-        lastLatencyMs: 0,
-        failCount: 0
-      },
-      {
-        id: 'Sys3',
-        host: process.env.SYS3_HOST || '127.0.0.1',
-        port: parseInt(process.env.SYS3_PORT || '3002', 10),
-        healthy: true,
-        activeConnections: 0,
-        totalRequests: 0,
-        totalBytes: 0,
-        lastLatencyMs: 0,
-        failCount: 0
-      },
-      {
-        id: 'Sys4',
-        host: process.env.SYS4_HOST || '127.0.0.1',
-        port: parseInt(process.env.SYS4_PORT || '3003', 10),
-        healthy: true,
-        activeConnections: 0,
-        totalRequests: 0,
-        totalBytes: 0,
-        lastLatencyMs: 0,
-        failCount: 0
-      }
-    ];
+const LB_PORT = Number(process.env.LB_PORT) || 3000;
+const THRESHOLD = Number(process.env.LB_THRESHOLD) || 65; // Optimal threshold (65)
+const HEALTH_INTERVAL_MS = 2500;
+const MAX_FAILURES = 3;
 
-    this.currentIndex = 0;
-    this.healthCheckInterval = null;
-    this.startTime = Date.now();
-    this.totalHandledRequests = 0;
-    this.totalHandledWs = 0;
+const BACKENDS = [
+  {
+    id: 'Sys2',
+    host: process.env.SYS2_HOST || '127.0.0.1',
+    port: Number(process.env.SYS2_PORT) || 3001,
+  },
+  {
+    id: 'Sys3',
+    host: process.env.SYS3_HOST || '127.0.0.1',
+    port: Number(process.env.SYS3_PORT) || 3002,
+  },
+  {
+    id: 'Sys4',
+    host: process.env.SYS4_HOST || '127.0.0.1',
+    port: Number(process.env.SYS4_PORT) || 3003,
   }
+].map(b => ({
+  ...b,
+  url: `http://${b.host}:${b.port}`,
+  healthy: true,
+  failures: 0,
+  metrics: { activeConnections: 0, cpuLoad: 0, avgResponseTime: 0, memUsage: 0 },
+  score: 0,
+  activeProxied: 0,
+  totalRequestsHandled: 0,
+  lastSeen: 0
+}));
 
-  // Get list of active backends based on current mode and health
-  getActiveBackends() {
-    let pool = this.allBackends;
-    if (this.mode === 'single') {
-      pool = this.allBackends.filter(b => b.id === 'Sys2');
-    }
-    const healthyPool = pool.filter(b => b.healthy);
-    return healthyPool.length > 0 ? healthyPool : pool;
-  }
+let currentBackend = null;
 
-  // Select backend using configured load balancing algorithm
-  selectBackend(req) {
-    const pool = this.getActiveBackends();
-    if (pool.length === 0) return null;
-    if (pool.length === 1) return pool[0];
-
-    if (this.algorithm === 'least-connections') {
-      let minConn = Infinity;
-      let selected = pool[0];
-      for (const b of pool) {
-        if (b.activeConnections < minConn) {
-          minConn = b.activeConnections;
-          selected = b;
-        }
-      }
-      return selected;
-    }
-
-    if (this.algorithm === 'ip-hash') {
-      const ip = (req && req.socket && req.socket.remoteAddress) || '127.0.0.1';
-      let hash = 0;
-      for (let i = 0; i < ip.length; i++) {
-        hash = (hash * 31 + ip.charCodeAt(i)) | 0;
-      }
-      const idx = Math.abs(hash) % pool.length;
-      return pool[idx];
-    }
-
-    // Default: Round-Robin
-    const backend = pool[this.currentIndex % pool.length];
-    this.currentIndex = (this.currentIndex + 1) % pool.length;
-    return backend;
-  }
-
-  // Health check worker
-  startHealthChecks(intervalMs = 2500) {
-    const checkOne = (backend) => {
-      const start = Date.now();
-      const req = http.request({
-        host: backend.host,
-        port: backend.port,
-        path: '/api/status',
-        method: 'GET',
-        timeout: 1500
-      }, (res) => {
-        let body = '';
-        res.on('data', chunk => body += chunk);
-        res.on('end', () => {
-          if (res.statusCode === 200) {
-            backend.healthy = true;
-            backend.failCount = 0;
-            backend.lastLatencyMs = Date.now() - start;
-          } else {
-            backend.failCount++;
-            if (backend.failCount >= 2) backend.healthy = false;
-          }
-        });
-      });
-
-      req.on('timeout', () => {
-        req.destroy();
-        backend.failCount++;
-        if (backend.failCount >= 2) backend.healthy = false;
-      });
-
-      req.on('error', () => {
-        backend.failCount++;
-        if (backend.failCount >= 2) backend.healthy = false;
-      });
-
-      req.end();
-    };
-
-    this.healthCheckInterval = setInterval(() => {
-      this.allBackends.forEach(checkOne);
-    }, intervalMs);
-    
-    // Initial immediate check
-    this.allBackends.forEach(checkOne);
-  }
-
-  // Create and start Load Balancer HTTP + WebSocket Server
-  start() {
-    this.server = http.createServer((req, res) => {
-      this.handleHttpRequest(req, res);
-    });
-
-    // Handle WebSocket Upgrades
-    this.server.on('upgrade', (req, socket, head) => {
-      this.handleWebSocketUpgrade(req, socket, head);
-    });
-
-    this.startHealthChecks();
-
-    return new Promise((resolve, reject) => {
-      this.server.listen(this.port, '0.0.0.0', () => {
-        console.log(`=======================================================`);
-        console.log(`[Sys1: Load Balancer] Listening on port ${this.port}`);
-        console.log(`[Algorithm] ${this.algorithm.toUpperCase()} | [Mode] ${this.mode.toUpperCase()}`);
-        console.log(`[Configured Backends]`);
-        this.allBackends.forEach(b => {
-          console.log(`  - ${b.id} -> http://${b.host}:${b.port}`);
-        });
-        console.log(`=======================================================`);
-        resolve(this.server);
-      });
-      this.server.on('error', reject);
-    });
-  }
-
-  // Handle standard HTTP requests and management endpoints
-  handleHttpRequest(req, res) {
-    const parsedUrl = url.parse(req.url, true);
-
-    // Management & Metrics API
-    if (parsedUrl.pathname === '/lb/status') {
-      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-      return res.end(JSON.stringify({
-        status: 'ok',
-        loadBalancer: 'Sys1-LB',
-        algorithm: this.algorithm,
-        mode: this.mode,
-        uptimeSeconds: Math.floor((Date.now() - this.startTime) / 1000),
-        totalRequestsHandled: this.totalHandledRequests,
-        totalWebSocketsHandled: this.totalHandledWs,
-        backends: this.allBackends.map(b => ({
-          id: b.id,
-          host: b.host,
-          port: b.port,
-          healthy: b.healthy,
-          activeConnections: b.activeConnections,
-          totalRequests: b.totalRequests,
-          lastLatencyMs: b.lastLatencyMs
-        }))
-      }, null, 2));
-    }
-
-    if (parsedUrl.pathname === '/lb/set-mode' && req.method === 'POST') {
-      let body = '';
-      req.on('data', chunk => body += chunk);
-      req.on('end', () => {
-        try {
-          const data = JSON.parse(body || '{}');
-          if (data.mode && (data.mode === 'single' || data.mode === 'multi')) {
-            this.mode = data.mode;
-            console.log(`[LB Admin] Switched mode to: ${this.mode}`);
-          }
-          if (data.algorithm && ['round-robin', 'least-connections', 'ip-hash'].includes(data.algorithm)) {
-            this.algorithm = data.algorithm;
-            console.log(`[LB Admin] Switched algorithm to: ${this.algorithm}`);
-          }
-          res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-          return res.end(JSON.stringify({ success: true, mode: this.mode, algorithm: this.algorithm }));
-        } catch (e) {
-          res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-          return res.end(JSON.stringify({ error: e.message }));
-        }
-      });
-      return;
-    }
-
-    // Select Backend
-    const backend = this.selectBackend(req);
-    if (!backend) {
-      res.writeHead(503, { 'Content-Type': 'text/plain' });
-      return res.end('503 Service Unavailable: No healthy backends available.');
-    }
-
-    this.totalHandledRequests++;
-    backend.totalRequests++;
-    backend.activeConnections++;
-
-    const startTime = Date.now();
-
-    // Prepare proxy request options
-    const headers = { ...req.headers };
-    headers['x-forwarded-for'] = (req.headers['x-forwarded-for'] ? req.headers['x-forwarded-for'] + ', ' : '') + req.socket.remoteAddress;
-    headers['x-forwarded-proto'] = 'http';
-    headers['x-forwarded-host'] = req.headers['host'] || `localhost:${this.port}`;
-
-    const proxyReq = http.request({
-      host: backend.host,
-      port: backend.port,
-      path: req.url,
-      method: req.method,
-      headers: headers,
-      timeout: 10000
-    }, (proxyRes) => {
-      const responseHeaders = { ...proxyRes.headers };
-      responseHeaders['x-load-balancer'] = 'Sys1-LB';
-      responseHeaders['x-served-by'] = backend.id;
-      responseHeaders['x-backend-port'] = String(backend.port);
-
-      res.writeHead(proxyRes.statusCode, responseHeaders);
-      proxyRes.pipe(res);
-
-      proxyRes.on('end', () => {
-        backend.activeConnections = Math.max(0, backend.activeConnections - 1);
-        backend.lastLatencyMs = Date.now() - startTime;
-      });
-    });
-
-    proxyReq.on('timeout', () => {
-      proxyReq.destroy();
-      backend.activeConnections = Math.max(0, backend.activeConnections - 1);
-      if (!res.headersSent) {
-        res.writeHead(504, { 'Content-Type': 'text/plain' });
-        res.end('504 Gateway Timeout');
-      }
-    });
-
-    proxyReq.on('error', (err) => {
-      backend.activeConnections = Math.max(0, backend.activeConnections - 1);
-      if (!res.headersSent) {
-        res.writeHead(502, { 'Content-Type': 'text/plain' });
-        res.end(`502 Bad Gateway: Backend ${backend.id} error (${err.message})`);
-      }
-    });
-
-    req.pipe(proxyReq);
-  }
-
-  // Handle WebSocket reverse proxying (full transparent duplex pipe)
-  handleWebSocketUpgrade(req, clientSocket, head) {
-    const backend = this.selectBackend(req);
-    if (!backend) {
-      clientSocket.destroy();
-      return;
-    }
-
-    this.totalHandledWs++;
-    backend.activeConnections++;
-
-    // Connect raw TCP socket to backend
-    const backendSocket = net.connect(backend.port, backend.host, () => {
-      // Rebuild initial upgrade HTTP request header block
-      let rawRequest = `${req.method} ${req.url} HTTP/${req.httpVersion}\r\n`;
-      for (let i = 0; i < req.rawHeaders.length; i += 2) {
-        const key = req.rawHeaders[i];
-        const val = req.rawHeaders[i + 1];
-        rawRequest += `${key}: ${val}\r\n`;
-      }
-      rawRequest += `X-Forwarded-For: ${req.socket.remoteAddress}\r\n`;
-      rawRequest += `X-Load-Balancer: Sys1-LB\r\n`;
-      rawRequest += `X-Served-By: ${backend.id}\r\n\r\n`;
-
-      backendSocket.write(rawRequest);
-      if (head && head.length > 0) {
-        backendSocket.write(head);
-      }
-
-      // Bi-directional pipe
-      clientSocket.pipe(backendSocket);
-      backendSocket.pipe(clientSocket);
-    });
-
-    const cleanup = () => {
-      backend.activeConnections = Math.max(0, backend.activeConnections - 1);
-      clientSocket.destroy();
-      backendSocket.destroy();
-    };
-
-    clientSocket.on('error', cleanup);
-    backendSocket.on('error', cleanup);
-    clientSocket.on('close', () => {
-      backend.activeConnections = Math.max(0, backend.activeConnections - 1);
-      backendSocket.destroy();
-    });
-    backendSocket.on('close', () => {
-      backend.activeConnections = Math.max(0, backend.activeConnections - 1);
-      clientSocket.destroy();
-    });
-  }
-
-  stop() {
-    if (this.healthCheckInterval) clearInterval(this.healthCheckInterval);
-    if (this.server) {
-      return new Promise(resolve => this.server.close(resolve));
-    }
-    return Promise.resolve();
-  }
+// --- Load Calculation (0 to 100) ---
+function computeLoadScore(b) {
+  const activeConn = Math.min((b.activeProxied + (b.metrics.activeConnections || 0)) * 2, 100);
+  const cpu = Math.min(b.metrics.cpuLoad || 0, 100);
+  const rt = Math.min((b.metrics.avgResponseTime || 0) / 20, 100); // 2000ms -> 100
+  // Weighted: 40% connections, 40% CPU, 20% latency
+  return Math.round(activeConn * 0.4 + cpu * 0.4 + rt * 0.2);
 }
 
-// CLI execution
-if (import.meta.url === `file://${process.argv[1]}` || (process.argv[1] && process.argv[1].endsWith('load_balancer.js'))) {
-  const lb = new LoadBalancer();
-  lb.start().catch(err => {
-    console.error('Failed to start Load Balancer:', err);
-    process.exit(1);
+// Dynamic Performance-Based Backend Selection with Threshold
+function selectBackend() {
+  const healthy = BACKENDS.filter(b => b.healthy);
+  if (healthy.length === 0) return null;
+
+  healthy.forEach(b => {
+    b.score = computeLoadScore(b);
+  });
+
+  // If we have an active backend that is healthy and under the threshold, stay on it
+  if (currentBackend && currentBackend.healthy && currentBackend.score < THRESHOLD) {
+    return currentBackend;
+  }
+
+  // Load exceeded threshold or currentBackend unhealthy: switch to least-loaded backend
+  const candidates = [...healthy].sort((a, b) => a.score - b.score);
+  const selected = candidates[0];
+
+  if (currentBackend && selected.id !== currentBackend.id) {
+    console.log(`[LB] 🔄 Switch: ${currentBackend.id} (Load: ${currentBackend.score} > Threshold: ${THRESHOLD}) -> ${selected.id} (Load: ${selected.score})`);
+  }
+
+  currentBackend = selected;
+  return selected;
+}
+
+// --- Health Checks & Live Metrics Polling ---
+function pollBackend(b) {
+  return new Promise(resolve => {
+    const req = http.get(
+      { host: b.host, port: b.port, path: '/api/metrics', timeout: 2000 },
+      res => {
+        let raw = '';
+        res.on('data', chunk => { raw += chunk; });
+        res.on('end', () => {
+          try {
+            const data = JSON.parse(raw);
+            b.metrics = {
+              activeConnections: data.activeConnections || 0,
+              cpuLoad: data.cpuLoad || 0,
+              avgResponseTime: data.avgResponseTime || 0,
+              memUsage: data.memUsage || 0
+            };
+            if (!b.healthy) {
+              console.log(`[LB] ✅ Backend ${b.id} recovered and returned to pool.`);
+            }
+            b.healthy = true;
+            b.failures = 0;
+            b.lastSeen = Date.now();
+          } catch {}
+          resolve();
+        });
+      }
+    );
+
+    req.on('error', () => {
+      b.failures++;
+      if (b.failures >= MAX_FAILURES && b.healthy) {
+        console.log(`[LB] ❌ Backend ${b.id} unhealthy after ${b.failures} failed probes. Evicted.`);
+        b.healthy = false;
+        if (currentBackend && currentBackend.id === b.id) {
+          currentBackend = null;
+        }
+      }
+      resolve();
+    });
+
+    req.on('timeout', () => {
+      req.destroy();
+      resolve();
+    });
   });
 }
+
+setInterval(async () => {
+  await Promise.all(BACKENDS.map(pollBackend));
+  BACKENDS.forEach(b => { b.score = computeLoadScore(b); });
+}, HEALTH_INTERVAL_MS);
+
+// Initial poll
+Promise.all(BACKENDS.map(pollBackend));
+
+// --- HTTP Proxy ---
+function proxyRequest(req, res, backend) {
+  backend.activeProxied++;
+  backend.totalRequestsHandled++;
+  const start = Date.now();
+
+  const options = {
+    host: backend.host,
+    port: backend.port,
+    path: req.url,
+    method: req.method,
+    headers: {
+      ...req.headers,
+      host: `${backend.host}:${backend.port}`,
+      'x-forwarded-for': req.socket.remoteAddress,
+      'x-forwarded-by': 'WaveTalk-Dynamic-LB'
+    }
+  };
+
+  const proxyReq = http.request(options, proxyRes => {
+    res.writeHead(proxyRes.statusCode, {
+      ...proxyRes.headers,
+      'x-served-by': backend.id,
+      'x-backend-load': String(backend.score),
+      'x-lb-threshold': String(THRESHOLD)
+    });
+    proxyRes.pipe(res, { end: true });
+    proxyRes.on('end', () => {
+      backend.activeProxied = Math.max(0, backend.activeProxied - 1);
+      const latency = Date.now() - start;
+      backend.metrics.avgResponseTime = Math.round((backend.metrics.avgResponseTime * 0.7) + (latency * 0.3));
+    });
+  });
+
+  proxyReq.on('error', err => {
+    backend.activeProxied = Math.max(0, backend.activeProxied - 1);
+    backend.failures++;
+    if (backend.failures >= MAX_FAILURES) {
+      backend.healthy = false;
+      if (currentBackend && currentBackend.id === backend.id) currentBackend = null;
+    }
+
+    // Failover retry
+    const fallback = selectBackend();
+    if (fallback && fallback.id !== backend.id) {
+      console.log(`[LB] Request failed on ${backend.id}, failing over to ${fallback.id}`);
+      return proxyRequest(req, res, fallback);
+    }
+
+    res.writeHead(502, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Bad Gateway: Backend unavailable', code: 502 }));
+  });
+
+  req.pipe(proxyReq, { end: true });
+}
+
+// --- Main HTTP Server ---
+const lbServer = http.createServer((req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204);
+    return res.end();
+  }
+
+  // Load Balancer Telemetry Endpoint
+  if (req.url === '/lb/status') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({
+      algorithm: 'Performance-Based Dynamic Threshold Switching',
+      threshold: THRESHOLD,
+      activeBackend: currentBackend ? currentBackend.id : 'None',
+      backends: BACKENDS.map(b => ({
+        id: b.id,
+        url: b.url,
+        healthy: b.healthy,
+        loadScore: b.score,
+        activeConnections: b.activeProxied + (b.metrics.activeConnections || 0),
+        requestsHandled: b.totalRequestsHandled,
+        cpuLoad: b.metrics.cpuLoad,
+        avgResponseTime: b.metrics.avgResponseTime,
+        failures: b.failures
+      }))
+    }));
+  }
+
+  const backend = selectBackend();
+  if (!backend) {
+    res.writeHead(503, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ error: 'Service Unavailable: No healthy backends', code: 503 }));
+  }
+
+  proxyRequest(req, res, backend);
+});
+
+// --- WebSocket Streaming Forwarding ---
+lbServer.on('upgrade', (req, socket, head) => {
+  const backend = selectBackend();
+  if (!backend) {
+    socket.destroy();
+    return;
+  }
+
+  const proxySocket = new net.Socket();
+  proxySocket.connect(backend.port, backend.host, () => {
+    proxySocket.write(
+      `${req.method} ${req.url} HTTP/1.1\r\n` +
+      Object.entries(req.headers).map(([k, v]) => `${k}: ${v}`).join('\r\n') +
+      '\r\n\r\n'
+    );
+    proxySocket.write(head);
+    socket.pipe(proxySocket).pipe(socket);
+  });
+
+  proxySocket.on('error', () => socket.destroy());
+  socket.on('error', () => proxySocket.destroy());
+});
+
+lbServer.listen(LB_PORT, '0.0.0.0', () => {
+  console.log('=======================================================');
+  console.log(`[Sys1: Load Balancer] Listening on port ${LB_PORT}`);
+  console.log(`[Algorithm] Performance-Based Dynamic Threshold Switching`);
+  console.log(`[Threshold] Load Score > ${THRESHOLD} triggers backend switch`);
+  console.log('[Configured Backends]');
+  BACKENDS.forEach(b => console.log(`  - ${b.id} -> ${b.url}`));
+  console.log('=======================================================');
+});

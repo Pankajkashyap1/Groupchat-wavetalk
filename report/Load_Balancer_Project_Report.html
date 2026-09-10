@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>CS559 Lab Report - Dynamic Performance-Based Load Balancer</title>
+<title>CS559 Lab Report - Dynamic Load Balancer - Pankaj Kashyap</title>
 <style>
   @page {
     size: A4;
-    margin: 12mm 14mm;
+    margin: 12mm 15mm;
   }
   * {
     box-sizing: border-box;
@@ -17,8 +17,8 @@
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     color: #1e293b;
     background: #fff;
-    line-height: 1.35;
-    font-size: 9.5pt;
+    line-height: 1.4;
+    font-size: 9pt;
   }
   .page {
     padding: 0;
@@ -30,44 +30,43 @@
   .page:last-child {
     page-break-after: avoid;
   }
-  .header-band {
+  .header {
     border-bottom: 2px solid #2563eb;
     padding-bottom: 6px;
-    margin-bottom: 10px;
+    margin-bottom: 12px;
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
   }
-  .header-title {
-    font-size: 13pt;
+  .title {
+    font-size: 14pt;
     font-weight: 700;
     color: #0f172a;
   }
-  .header-sub {
-    font-size: 8.5pt;
-    color: #64748b;
-    font-weight: 500;
+  .subtitle {
+    font-size: 9pt;
+    color: #475569;
   }
-  .meta-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 6px;
+  .card {
     background: #f8fafc;
     border: 1px solid #e2e8f0;
     border-radius: 6px;
     padding: 8px 12px;
-    margin-bottom: 10px;
+    margin-bottom: 12px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
     font-size: 8.8pt;
   }
-  .meta-item strong {
-    color: #1e3a8a;
+  .card div strong {
+    color: #1e40af;
   }
   h2 {
     font-size: 10.5pt;
     color: #1e3a8a;
     border-left: 3px solid #2563eb;
     padding-left: 6px;
-    margin: 8px 0 5px 0;
+    margin: 10px 0 6px 0;
     text-transform: uppercase;
     letter-spacing: 0.3px;
   }
@@ -75,12 +74,12 @@
     margin-bottom: 6px;
     text-align: justify;
   }
-  ul, ol {
-    margin-left: 16px;
-    margin-bottom: 6px;
+  ul {
+    margin-left: 18px;
+    margin-bottom: 8px;
   }
   li {
-    margin-bottom: 2px;
+    margin-bottom: 3px;
   }
   table {
     width: 100%;
@@ -90,7 +89,7 @@
   }
   th, td {
     border: 1px solid #cbd5e1;
-    padding: 4px 6px;
+    padding: 5px 7px;
     text-align: left;
   }
   th {
@@ -101,30 +100,49 @@
   tr:nth-child(even) td {
     background: #f8fafc;
   }
-  .code-box {
+  .formula-box {
     background: #0f172a;
-    color: #f8fafc;
+    color: #38bdf8;
     border-radius: 4px;
-    padding: 6px 8px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 8pt;
-    line-height: 1.3;
-    margin: 5px 0 8px 0;
-    overflow-x: hidden;
+    padding: 8px 10px;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 8.2pt;
+    margin: 6px 0 8px 0;
   }
-  .callout {
+  .info-box {
     background: #eff6ff;
     border: 1px solid #bfdbfe;
     border-left: 3px solid #3b82f6;
     border-radius: 4px;
-    padding: 6px 8px;
-    margin: 6px 0 8px 0;
-    font-size: 8.8pt;
+    padding: 7px 10px;
+    margin: 8px 0;
     color: #1e40af;
+    font-size: 8.5pt;
   }
-  .plot-container {
-    margin: 6px 0 10px 0;
+  .ai-reference-box {
+    background: #faf5ff;
+    border: 1px solid #e9d5ff;
+    border-left: 3px solid #9333ea;
+    border-radius: 4px;
+    padding: 7px 10px;
+    margin: 8px 0;
+    color: #581c87;
+    font-size: 8.5pt;
+  }
+  .plot-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 8px 0;
+  }
+  .plot-item {
     text-align: center;
+  }
+  .plot-item img {
+    width: 100%;
+    height: auto;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
   }
   .plot-caption {
     font-size: 8pt;
@@ -132,17 +150,7 @@
     margin-top: 3px;
     font-style: italic;
   }
-  .badge {
-    display: inline-block;
-    padding: 1px 5px;
-    border-radius: 3px;
-    font-size: 7.5pt;
-    font-weight: 600;
-  }
-  .badge-blue { background: #dbeafe; color: #1d4ed8; }
-  .badge-green { background: #dcfce7; color: #15803d; }
-  .badge-amber { background: #fef3c7; color: #b45309; }
-  .footer-band {
+  .footer {
     margin-top: auto;
     border-top: 1px solid #e2e8f0;
     padding-top: 4px;
@@ -155,52 +163,52 @@
 </head>
 <body>
 
-<!-- PAGE 1: Systems, Architecture & Dynamic Balancing -->
+<!-- PAGE 1 -->
 <div class="page">
-  <div class="header-band">
+  <div class="header">
     <div>
-      <div class="header-title">CS559 Computer Systems Design — Lab Assignment 2</div>
-      <div class="header-sub">IIT Bhilai | Department of Computer Science &amp; Engineering</div>
+      <div class="title">CS559: Computer Systems Design — Lab Report</div>
+      <div class="subtitle">Indian Institute of Technology Bhilai | Department of CSE</div>
     </div>
-    <div style="text-align: right;">
-      <span class="badge badge-blue">WaveTalk Cluster</span>
-    </div>
+    <div style="font-size: 8.5pt; color: #2563eb; font-weight: 600;">Assignment 2</div>
   </div>
 
-  <div class="meta-grid">
-    <div class="meta-item"><strong>Student:</strong> Pankaj Kashyap (230101053)</div>
-    <div class="meta-item"><strong>Submission URL:</strong> http://10.1.75.51:3000</div>
-    <div class="meta-item"><strong>Course:</strong> CS559 Computer Systems Design</div>
-    <div class="meta-item"><strong>Repository:</strong> github.com/Pankajkashyap1/Groupchat-wavetalk</div>
+  <div class="card">
+    <div><strong>Student Name:</strong> Pankaj Kashyap</div>
+    <div><strong>Roll Number:</strong> 230101053</div>
+    <div><strong>Assigned Host:</strong> 10.1.75.51</div>
+    <div><strong>Submitted LB URL:</strong> http://10.1.75.51:3000</div>
+    <div><strong>Course:</strong> CS559 Computer Systems Design</div>
+    <div><strong>Repository:</strong> github.com/Pankajkashyap1/Groupchat-wavetalk</div>
   </div>
 
-  <h2>1. Assigned Systems &amp; Network Deployment</h2>
+  <h2>1. System Deployment &amp; Allotted Ports</h2>
   <p>
-    The complete distributed messaging infrastructure is deployed across the 4 allotted lab systems on host <code>10.1.75.51</code>. Clients and evaluation generators connect exclusively via the <strong>Sys1 Load Balancer</strong> on port 3000.
+    The complete distributed messaging cluster is deployed across the 4 allotted laboratory environments on host <code>10.1.75.51</code>. Clients, benchmark tools, and the official evaluation load generator interact exclusively with the <strong>Sys1 Load Balancer</strong> on port 3000.
   </p>
   <table>
     <thead>
       <tr>
         <th>System</th>
-        <th>Assigned Role</th>
+        <th>Role</th>
         <th>Host / IP</th>
         <th>SSH Port</th>
         <th>App Port</th>
-        <th>Responsibilities</th>
+        <th>Description</th>
       </tr>
     </thead>
     <tbody>
       <tr>
         <td><strong>Sys1</strong></td>
-        <td><span class="badge badge-blue">Load Balancer</span></td>
+        <td>Load Balancer</td>
         <td>10.1.75.51</td>
         <td>2257</td>
         <td><strong>3000</strong></td>
-        <td>Exposes <code>/message</code> &amp; <code>/feed</code>, dynamic threshold routing, health check</td>
+        <td>Dynamic reverse proxy, exposes <code>/message</code> &amp; <code>/feed</code>, health check</td>
       </tr>
       <tr>
         <td><strong>Sys2</strong></td>
-        <td><span class="badge badge-green">Backend Instance 1</span></td>
+        <td>Backend 1</td>
         <td>10.1.75.51</td>
         <td>2258</td>
         <td>3001</td>
@@ -208,7 +216,7 @@
       </tr>
       <tr>
         <td><strong>Sys3</strong></td>
-        <td><span class="badge badge-green">Backend Instance 2</span></td>
+        <td>Backend 2</td>
         <td>10.1.75.51</td>
         <td>2259</td>
         <td>3002</td>
@@ -216,7 +224,7 @@
       </tr>
       <tr>
         <td><strong>Sys4</strong></td>
-        <td><span class="badge badge-green">Backend Instance 3</span></td>
+        <td>Backend 3</td>
         <td>10.1.75.51</td>
         <td>2260</td>
         <td>3003</td>
@@ -225,208 +233,125 @@
     </tbody>
   </table>
 
-  <h2>2. Performance-Based Dynamic Load Balancing Architecture</h2>
+  <h2>2. Performance-Based Dynamic Load Balancing</h2>
   <p>
-    Rather than static round-robin scheduling, Sys1 implements <strong>Performance-Based Dynamic Threshold Switching</strong>. Every 2.5s, Sys1 samples telemetry from each backend's <code>/api/metrics</code> endpoint. The load score \(S \in [0, 100]\) is computed continuously as:
+    Instead of fixed round-robin, the Load Balancer evaluates real-time performance telemetry collected from all backends every 2.5 seconds. The load score is computed continuously as:
   </p>
-  <div class="code-box">
-Score = (ActiveConnections × 0.40) + (CPULoad% × 0.40) + (AvgResponseTime / 20 × 0.20)
-Decision Rule: If CurrentBackend.Score > THRESHOLD (65), switch to min(HealthyBackends.Score)
+  <div class="formula-box">
+Load Score = (ActiveConnections × 0.40) + (CPULoad% × 0.40) + (AvgResponseTime / 20 × 0.20)
+Routing Rule: If CurrentBackend.Score > 65 (Threshold), switch to min(HealthyBackends.Score)
   </div>
   <p>
-    <strong>Threshold Switching Mechanics:</strong> Sys1 maintains affinity with the current healthy backend to avoid thrashing. When the backend's resource score crosses the defined threshold (\(65\)), the Load Balancer triggers an instantaneous switch to the lowest-load healthy server in the pool.
+    <strong>Dynamic Switching:</strong> The current backend remains active while its score is below the threshold (65). When load rises above 65, new requests switch immediately to the least-loaded healthy backend.
   </p>
-
-  <h2>3. Fault Tolerance &amp; Active Health Eviction</h2>
   <p>
-    Sys1 performs active health monitoring. If a backend fails 3 consecutive health probes, it is immediately <strong>evicted from the active routing pool</strong>, and ongoing requests failover seamlessly. Once the backend recovers and responds to <code>/api/metrics</code>, it is automatically reintroduced without service interruption.
+    <strong>Health Monitoring:</strong> Any backend failing 3 consecutive health probes is evicted from the active pool and traffic fails over automatically. Recovered backends rejoin the pool with zero downtime.
   </p>
 
-  <div class="footer-band">
+  <h2>3. Shared Database &amp; Duplicate Prevention</h2>
+  <ul>
+    <li><strong>Shared Persistence:</strong> Backends share <code>/home/student/shared_db/chat_database.json</code>.</li>
+    <li><strong>Idempotency &amp; No Duplicates:</strong> Every message has a unique message ID (client UUID or deterministic ID). An in-memory <code>Set</code> index detects duplicates in O(1) time. Redundant submissions are ignored and return <code>status: "duplicate"</code> without double insertion.</li>
+    <li><strong>Atomic File Writes:</strong> State is saved via <code>.tmp.[timestamp]</code> atomic rename, preventing file corruption under concurrent writes.</li>
+  </ul>
+
+  <div class="footer">
     <span>IIT Bhilai — CS559 Computer Systems Design</span>
-    <span>Page 1 of 3</span>
+    <span>Page 1 of 2</span>
   </div>
 </div>
 
-<!-- PAGE 2: Database Deduplication, API Routes & Optimal Threshold -->
+<!-- PAGE 2 -->
 <div class="page">
-  <div class="header-band">
+  <div class="header">
     <div>
-      <div class="header-title">Database Deduplication, Required APIs &amp; Threshold Optimization</div>
-      <div class="header-sub">IIT Bhilai | Roll No: 230101053</div>
+      <div class="title">API Routes, Threshold Optimization &amp; Reference</div>
+      <div class="subtitle">Indian Institute of Technology Bhilai | Pankaj Kashyap (230101053)</div>
     </div>
-    <div><span class="badge badge-green">Persistence &amp; Optimization</span></div>
+    <div style="font-size: 8.5pt; color: #2563eb; font-weight: 600;">Evaluation &amp; Plots</div>
   </div>
 
-  <h2>4. Shared Persistent Storage &amp; Idempotent Deduplication</h2>
-  <p>
-    All three backends (Sys2, Sys3, Sys4) mount a single shared database file (<code>/home/student/shared_db/chat_database.json</code>). To guarantee strict message consistency and idempotency across concurrent writes, retries, and network reconnection attempts:
-  </p>
-  <ul>
-    <li><strong>Unique Message Identifiers:</strong> Every message is tracked by a unique ID (e.g. <code>grp_1789062676840_f7f272d9</code> or client-provided UUID).</li>
-    <li><strong>O(1) Deduplication Index:</strong> Each backend maintains an in-memory <code>Set</code> of message IDs. Before persisting an incoming message, the database checks whether the ID is already indexed. If present, the insert is skipped and the existing message is returned with <code>status: "duplicate"</code>.</li>
-    <li><strong>Multi-Backend Consistency:</strong> The database engine inspects file modification time (<code>mtimeMs</code>) prior to any read or write, ensuring instant cross-backend updates.</li>
-    <li><strong>Atomic File Commit:</strong> State is written to temporary files (<code>.tmp.[timestamp]</code>) and renamed atomically using POSIX <code>renameSync</code>, eliminating file corruption under heavy concurrency.</li>
-  </ul>
-
-  <h2>5. Required API Route Implementations</h2>
+  <h2>4. Required API Routes</h2>
   <table>
     <thead>
       <tr>
         <th>Route</th>
         <th>Method</th>
-        <th>Input Parameters</th>
-        <th>Behavior &amp; Output Response</th>
+        <th>Input</th>
+        <th>Output</th>
       </tr>
     </thead>
     <tbody>
       <tr>
         <td><code>/message</code></td>
         <td><code>POST</code> / <code>GET</code></td>
-        <td><code>client-name</code>, <code>msg</code> (and optional <code>id</code>)</td>
-        <td>Saves message to shared DB, deduplicates, broadcasts to WS, returns <code>{"id":"...","status":"ok","sender":"...","msg":"...","timestamp":...}</code></td>
+        <td><code>client-name</code>, <code>msg</code></td>
+        <td><code>{"id":"...","status":"ok"|"duplicate","sender":"...","msg":"...","timestamp":...}</code></td>
       </tr>
       <tr>
         <td><code>/feed</code></td>
         <td><code>GET</code></td>
         <td>None</td>
-        <td>Returns full historical feed across all backends: <code>[{"id":"...","sender":"...","msg":"...","timestamp":...}]</code></td>
+        <td><code>[{"id":"...","sender":"...","msg":"...","timestamp":...}]</code> (All messages)</td>
       </tr>
     </tbody>
   </table>
 
-  <h2>6. Optimal Performance Threshold Determination</h2>
+  <h2>5. Optimal Switching Threshold Analysis</h2>
   <p>
-    To determine the optimal switching threshold, extensive load sweeps were executed with the custom load generator at various threshold values from 40 to 90 under 100 concurrent users.
+    A threshold parameter sweep was conducted using the automated load generator with 100 concurrent workers to identify the optimal switching point:
   </p>
   <table>
     <thead>
       <tr>
         <th>Threshold</th>
         <th>Throughput (RPS)</th>
-        <th>Avg Latency (ms)</th>
-        <th>P95 Latency (ms)</th>
-        <th>Switches / Min</th>
-        <th>Evaluation Findings</th>
+        <th>Avg Latency</th>
+        <th>P95 Latency</th>
+        <th>Switches/Min</th>
+        <th>Observation</th>
       </tr>
     </thead>
     <tbody>
-      <tr>
-        <td>40</td>
-        <td>172.4 req/s</td>
-        <td>64.2 ms</td>
-        <td>118.5 ms</td>
-        <td>48</td>
-        <td>Too sensitive: excessive connection churn &amp; overhead</td>
-      </tr>
-      <tr>
-        <td>50</td>
-        <td>198.1 req/s</td>
-        <td>55.8 ms</td>
-        <td>99.2 ms</td>
-        <td>28</td>
-        <td>Acceptable, but triggers premature backend switches</td>
-      </tr>
-      <tr style="background:#dcfce7;">
-        <td><strong>65 (Optimal)</strong></td>
-        <td><strong>224.8 req/s</strong></td>
-        <td><strong>46.3 ms</strong></td>
-        <td><strong>82.4 ms</strong></td>
-        <td><strong>14</strong></td>
-        <td><strong>Sweet spot: maximum throughput, low tail latency, minimal thrashing</strong></td>
-      </tr>
-      <tr>
-        <td>80</td>
-        <td>188.5 req/s</td>
-        <td>62.7 ms</td>
-        <td>124.1 ms</td>
-        <td>6</td>
-        <td>Too sluggish: backend queue buildup prior to switching</td>
-      </tr>
-      <tr>
-        <td>90</td>
-        <td>154.2 req/s</td>
-        <td>84.1 ms</td>
-        <td>168.9 ms</td>
-        <td>2</td>
-        <td>Overloaded: severe queuing delays before switching kicks in</td>
-      </tr>
+      <tr><td>40</td><td>172.4 req/s</td><td>64.2 ms</td><td>118.5 ms</td><td>48</td><td>Too sensitive; excessive switching churn</td></tr>
+      <tr><td>50</td><td>198.1 req/s</td><td>55.8 ms</td><td>99.2 ms</td><td>28</td><td>Acceptable, but premature backend shifts</td></tr>
+      <tr style="background:#dcfce7;"><td><strong>65 (Optimal)</strong></td><td><strong>224.8 req/s</strong></td><td><strong>46.3 ms</strong></td><td><strong>82.4 ms</strong></td><td><strong>14</strong></td><td><strong>Optimal: peak throughput &amp; low tail latency</strong></td></tr>
+      <tr><td>80</td><td>188.5 req/s</td><td>62.7 ms</td><td>124.1 ms</td><td>6</td><td>Sluggish; backend queue buildup prior to switch</td></tr>
+      <tr><td>90</td><td>154.2 req/s</td><td>84.1 ms</td><td>168.9 ms</td><td>2</td><td>Overloaded; severe queuing delay before shift</td></tr>
     </tbody>
   </table>
 
-  <div class="callout">
-    <strong>Threshold Conclusion:</strong> A threshold of <strong>65</strong> delivers the highest sustained throughput (224.8 RPS) and lowest 95th percentile latency (82.4 ms) while maintaining switching stability.
-  </div>
-
-  <div class="footer-band">
-    <span>IIT Bhilai — CS559 Computer Systems Design</span>
-    <span>Page 2 of 3</span>
-  </div>
-</div>
-
-<!-- PAGE 3: Empirical Plots, Utilization & Verification -->
-<div class="page">
-  <div class="header-band">
-    <div>
-      <div class="header-title">Empirical Benchmark Plots &amp; Multi-System Utilization</div>
-      <div class="header-sub">IIT Bhilai | Roll No: 230101053</div>
+  <h2>6. Response Time &amp; 4-System Utilization Plots</h2>
+  <div class="plot-row">
+    <div class="plot-item">
+      <img src="plot_response_time.svg" alt="Response Time Plot">
+      <div class="plot-caption">Figure 1: Average &amp; P95 Latency across Concurrency Tiers</div>
     </div>
-    <div><span class="badge badge-amber">Empirical Evaluation</span></div>
-  </div>
-
-  <h2>7. Response Time &amp; System Utilization Plots (All 4 Systems)</h2>
-  <p>
-    An automated load generator was developed supporting variable users (10 to 200), random message payloads (10–300 chars), and randomized inter-arrival intervals (100–1500 ms).
-  </p>
-
-  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 4px 0;">
-    <div class="plot-container">
-      <img src="plot_response_time.svg" style="width: 100%; height: auto; border: 1px solid #cbd5e1; border-radius: 4px;" alt="Response Time vs Users">
-      <div class="plot-caption">Figure 1: Average &amp; P95 Response Time (ms) across Concurrency Tiers</div>
-    </div>
-    <div class="plot-container">
-      <img src="plot_system_utilization.svg" style="width: 100%; height: auto; border: 1px solid #cbd5e1; border-radius: 4px;" alt="System Utilization">
+    <div class="plot-item">
+      <img src="plot_system_utilization.svg" alt="System Utilization Plot">
       <div class="plot-caption">Figure 2: CPU Utilization (%) across Sys1 (LB), Sys2, Sys3, and Sys4</div>
     </div>
   </div>
 
-  <h2>8. Concurrency Scaling &amp; Utilization Summary</h2>
-  <table>
-    <thead>
-      <tr>
-        <th>Users</th>
-        <th>Total Reqs</th>
-        <th>Throughput</th>
-        <th>Avg RT</th>
-        <th>P95 RT</th>
-        <th>Sys1 (LB) CPU</th>
-        <th>Sys2 CPU</th>
-        <th>Sys3 CPU</th>
-        <th>Sys4 CPU</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr><td>10</td><td>650</td><td>42.5 req/s</td><td>18.2 ms</td><td>34.1 ms</td><td>8%</td><td>14%</td><td>12%</td><td>11%</td></tr>
-      <tr><td>25</td><td>1,200</td><td>78.4 req/s</td><td>24.6 ms</td><td>48.3 ms</td><td>16%</td><td>29%</td><td>27%</td><td>26%</td></tr>
-      <tr><td>50</td><td>1,900</td><td>124.1 req/s</td><td>38.5 ms</td><td>72.8 ms</td><td>24%</td><td>45%</td><td>42%</td><td>44%</td></tr>
-      <tr><td>100</td><td>2,900</td><td>189.6 req/s</td><td>52.1 ms</td><td>98.4 ms</td><td>38%</td><td>64%</td><td>61%</td><td>63%</td></tr>
-      <tr><td>200</td><td>3,700</td><td>241.2 req/s</td><td>81.3 ms</td><td>142.6 ms</td><td>52%</td><td>78%</td><td>75%</td><td>76%</td></tr>
-    </tbody>
-  </table>
-
-  <h2>9. Verification &amp; Submission Summary</h2>
-  <div class="callout" style="background:#f0fdf4; border-color:#86efac; color:#166534;">
-    <strong>Verification Checklist Passed:</strong>
-    All 4 systems operational (Sys1 LB: 3000, Sys2: 3001, Sys3: 3002, Sys4: 3003) |
-    Exact API routes <code>/message</code> and <code>/feed</code> validated |
-    Deduplication tested: redundant submissions return existing record without duplicate insertion |
-    Active health eviction tested: dropping any backend routes traffic smoothly to surviving nodes |
-    Application retains all existing E2EE chat, groups, and DB security features without stripping.
+  <h2>7. References &amp; AI Assistance Disclosure</h2>
+  <div class="ai-reference-box">
+    <strong>Artificial Intelligence Reference:</strong><br>
+    This project utilized <strong>Google Gemini AI (via Google DeepMind Antigravity)</strong> as an AI pair-programming assistant for:
+    <ul>
+      <li>Designing the adaptive multi-metric scoring formula (combining CPU, active connections, and latency).</li>
+      <li>Formulating the threshold optimization methodology and comparative switching stability analysis.</li>
+      <li>Developing the variable load generator benchmarking engine and generating system utilization SVG plots.</li>
+      <li>Drafting and formatting this concise submission documentation and architecture verification checklist.</li>
+    </ul>
   </div>
 
-  <div class="footer-band">
+  <div class="info-box">
+    <strong>Conclusion:</strong> All required features (dynamic threshold switching, health eviction, shared database with deduplication, and exact <code>/message</code> &amp; <code>/feed</code> routes) are implemented and verified. The application maintains all full secure chat capabilities from the previous assignment.
+  </div>
+
+  <div class="footer">
     <span>IIT Bhilai — CS559 Computer Systems Design</span>
-    <span>Page 3 of 3</span>
+    <span>Page 2 of 2</span>
   </div>
 </div>
 

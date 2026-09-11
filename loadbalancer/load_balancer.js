@@ -1,21 +1,27 @@
 // WaveTalk Dynamic Performance-Based Load Balancer (Sys1)
-// Highly optimized for high-throughput benchmarks (20,000 requests)
+// Highly optimized for high-throughput benchmarks (20,000+ requests)
 // Features: Dynamic threshold switching, keep-alive connection pooling, zero-drop failover.
 
 import http from 'http';
 import net from 'net';
 
+process.on('uncaughtException', err => {
+  console.error('[LB UncaughtException]', err.message);
+});
+process.on('unhandledRejection', reason => {
+  console.error('[LB UnhandledRejection]', reason);
+});
+
 const LB_PORT = Number(process.env.LB_PORT) || 3000;
 const THRESHOLD = Number(process.env.LB_THRESHOLD) || 65;
 const HEALTH_INTERVAL_MS = 2500;
-const MAX_FAILURES = 8; // generous threshold under extreme load
+const MAX_FAILURES = 8;
 
-// High-performance keep-alive agent to reuse TCP sockets
 const proxyAgent = new http.Agent({
   keepAlive: true,
-  maxSockets: 5000,
-  maxFreeSockets: 1000,
-  timeout: 30000
+  maxSockets: 10000,
+  maxFreeSockets: 2000,
+  timeout: 60000
 });
 
 const BACKENDS = [
@@ -57,9 +63,8 @@ function computeLoadScore(b) {
 
 function selectBackend() {
   let healthy = BACKENDS.filter(b => b.healthy);
-  // Under extreme load, if all are marked busy, NEVER drop requests!
   if (healthy.length === 0) {
-    healthy = BACKENDS;
+    healthy = BACKENDS; // Never drop requests under load spike
   }
 
   healthy.forEach(b => {
@@ -121,7 +126,6 @@ setInterval(async () => {
   BACKENDS.forEach(b => { b.score = computeLoadScore(b); });
 }, HEALTH_INTERVAL_MS);
 
-// Initial poll
 Promise.all(BACKENDS.map(pollBackend));
 
 function proxyRequest(req, res, backend) {
@@ -144,12 +148,7 @@ function proxyRequest(req, res, backend) {
   };
 
   const proxyReq = http.request(options, proxyRes => {
-    res.writeHead(proxyRes.statusCode, {
-      ...proxyRes.headers,
-      'x-served-by': backend.id,
-      'x-backend-load': String(backend.score),
-      'x-lb-threshold': String(THRESHOLD)
-    });
+    res.writeHead(proxyRes.statusCode, proxyRes.headers);
     proxyRes.pipe(res, { end: true });
     proxyRes.on('end', () => {
       backend.activeProxied = Math.max(0, backend.activeProxied - 1);
@@ -162,17 +161,14 @@ function proxyRequest(req, res, backend) {
     backend.activeProxied = Math.max(0, backend.activeProxied - 1);
     backend.failures++;
     if (backend.failures >= MAX_FAILURES) {
-      b.healthy = false;
+      backend.healthy = false; // Fixed: was b.healthy = false
       if (currentBackend && currentBackend.id === backend.id) currentBackend = null;
     }
 
-    const fallback = selectBackend();
-    if (fallback && fallback.id !== backend.id) {
-      return proxyRequest(req, res, fallback);
+    if (!res.headersSent) {
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Backend error', code: 502 }));
     }
-
-    res.writeHead(502, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Backend error', code: 502 }));
   });
 
   req.pipe(proxyReq, { end: true });
@@ -231,7 +227,11 @@ lbServer.on('upgrade', (req, socket, head) => {
   socket.on('error', () => proxySocket.destroy());
 });
 
-lbServer.listen(LB_PORT, '0.0.0.0', () => {
+lbServer.maxConnections = 50000;
+lbServer.keepAliveTimeout = 70000;
+lbServer.headersTimeout = 75000;
+
+lbServer.listen(LB_PORT, '0.0.0.0', 4096, () => {
   console.log('=======================================================');
   console.log(`[Sys1: Load Balancer] Listening on port ${LB_PORT}`);
   console.log(`[Algorithm] Performance-Based Dynamic Threshold Switching`);

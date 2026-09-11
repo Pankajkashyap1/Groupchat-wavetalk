@@ -135,8 +135,10 @@ const server = http.createServer(async (req, res) => {
 
       const saved = db.saveGroupMessage({ id: msgId, sender, text: cleanMsg });
 
-      // Broadcast to all WebSocket clients
-      broadcast({ type: 'group_message', message: saved });
+      // Broadcast to WebSocket clients only if any connected
+      if (wss && wss.clients && wss.clients.size > 0) {
+        broadcast({ type: 'group_message', message: saved });
+      }
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({
@@ -395,7 +397,11 @@ const heartbeat = setInterval(() => {
 
 wss.on('close', () => clearInterval(heartbeat));
 
-server.listen(PORT, '0.0.0.0', () => {
+server.maxConnections = 50000;
+server.keepAliveTimeout = 70000;
+server.headersTimeout = 75000;
+
+server.listen(PORT, '0.0.0.0', 4096, () => {
   console.log(`====================================================`);
   console.log(`🚀 WaveTalk [${INSTANCE_ID}] running on port ${PORT}`);
   console.log(`📬 POST /message  — submit a message`);
